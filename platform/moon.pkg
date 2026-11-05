@@ -1,0 +1,6 @@
+// 平台相关的小能力，全部是“有就用、没有就退化成轮询”的可选路径。
+supported_targets = "native"
+
+options(
+  "native-stub": [ "stub.c" ],
+)

@@ -1,0 +1,12 @@
+// 剪贴板事件源：轮询器 + 平台变更计数快路径。
+import {
+  "moonbitlang/core/async",
+  "moonbitlang/core/debug",
+  "Tangbuting/hk/platform",
+}
+
+supported_targets = "native"
+
+options(
+  "allow-experimental-packages": [ "moonbitlang/core/async" ],
+)

@@ -1,0 +1,35 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Tangbuting/hk/watch"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub async fn watch_loop(Watcher, Int32, async (String) -> Bool, on_error? : async (String) -> Unit) -> Unit
+
+// Errors
+
+// Types and methods
+pub(all) enum Poll {
+  Changed(String)
+  Idle
+  Failed(String)
+}
+pub fn Poll::equal(Self, Self) -> Bool
+pub fn Poll::not_equal(Self, Self) -> Bool
+pub fn Poll::to_repr(Self) -> @debug.Repr
+pub impl Eq for Poll
+pub impl @debug.Debug for Poll
+
+pub(all) struct Watcher {
+  read : async () -> Result[String?, String]
+  mut last_token : UInt64?
+  mut last_text : String?
+}
+pub fn Watcher::new(async () -> Result[String?, String], initial? : String?) -> Self
+pub async fn Watcher::poll(Self) -> Poll
+
+// Type aliases
+
+// Traits

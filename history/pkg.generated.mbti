@@ -1,0 +1,51 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Tangbuting/hk/history"
+
+// Values
+pub fn classify(String) -> Kind
+
+pub fn decode(String) -> History
+
+pub fn encode(History) -> String
+
+pub fn mask(String) -> String
+
+pub let max_entries : Int32
+
+pub let max_entry_bytes : Int32
+
+pub fn summary(String, Int32) -> String
+
+// Errors
+
+// Types and methods
+pub(all) struct Entry {
+  text : String
+  ts : Int64
+  hits : Int32
+  pinned : Bool
+  kind_label : String
+  is_secret : Bool
+}
+
+pub(all) struct History {
+  mut entries : Array[Entry]
+}
+pub fn History::clear(Self, keep_pinned? : Bool) -> Unit
+pub fn History::get(Self, Int32) -> Entry?
+pub fn History::is_empty(Self) -> Bool
+pub fn History::len(Self) -> Int32
+pub fn History::new() -> Self
+pub fn History::push(Self, String, Int64, max_bytes? : Int32) -> Int32?
+pub fn History::remove_at(Self, Int32) -> Unit
+pub fn History::search(Self, String) -> Array[Int32]
+pub fn History::toggle_pin(Self, Int32) -> Unit
+
+pub(all) struct Kind {
+  label : String
+  is_secret : Bool
+}
+
+// Type aliases
+
+// Traits

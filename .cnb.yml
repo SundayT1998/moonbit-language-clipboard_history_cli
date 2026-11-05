@@ -1,0 +1,10 @@
+main:
+  push:
+    - stages:
+        - name: test
+          script: |
+            set -e
+            moon version
+            moon check --target native
+            moon fmt --check
+            moon test --target native

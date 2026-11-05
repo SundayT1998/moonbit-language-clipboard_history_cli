@@ -1,0 +1,36 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Tangbuting/hk/cmd/hk"
+
+import {
+  "Tangbuting/hk/history",
+}
+
+// Values
+pub fn data_dir() -> String
+
+pub async fn load() -> @history.History
+
+pub fn now_ms() -> Int64
+
+pub fn resolve_indexes(Args) -> Result[Array[Int32], String]
+
+pub async fn save(@history.History) -> Unit
+
+pub async fn with_history(async (@history.History) -> Unit) -> Unit
+
+// Errors
+
+// Types and methods
+pub(all) struct Args {
+  command : String
+  positional : Array[String]
+  limit : Int32
+  full : Bool
+  pinned_only : Bool
+  query : String?
+  json : Bool
+}
+
+// Type aliases
+
+// Traits
