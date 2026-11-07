@@ -9,18 +9,23 @@
 //   "moonbitlang/x@0.4.6",
 // }
 
-name = "username/clipboard_history_cli"
+name = "SundayT1998/clipboard_history_cli"
 
 version = "0.1.0"
 
 readme = "README.mbt.md"
 
-repository = ""
+repository = "https://github.com/SundayT1998/moonbit-language-clipboard_history_cli"
 
 license = "Apache-2.0"
 
-keywords = []
+keywords = [ "clipboard", "history", "cli", "productivity" ]
 
 preferred_target = "native"
 
-description = ""
+description = "Moonbit 实现的终端剪贴板历史 cli 工具"
+
+import {
+  "moonbit-community/proton_clipboard@0.9.0",
+}
+
