@@ -5,8 +5,8 @@ import {
   "moonbitlang/core/env",
   "moonbit-community/proton_clipboard" @clip,
   "moonbitlang/core/string",
-  "Tangbuting/hk/history",
-  "Tangbuting/hk/watch",
+  "SundayT1998/clipboard_history_cli/history",
+  "SundayT1998/clipboard_history_cli/watch",
 }
 
 pkgtype(kind: "executable")

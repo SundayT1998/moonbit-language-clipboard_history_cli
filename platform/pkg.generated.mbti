@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "Tangbuting/hk/platform"
+package "SundayT1998/clipboard_history_cli/platform"
 
 // Values
 pub fn change_token() -> UInt64?

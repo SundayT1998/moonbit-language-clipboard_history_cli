@@ -2,7 +2,7 @@
 import {
   "moonbitlang/core/async",
   "moonbitlang/core/debug",
-  "Tangbuting/hk/platform",
+  "SundayT1998/clipboard_history_cli/platform",
 }
 
 supported_targets = "native"
