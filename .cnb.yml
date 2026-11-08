@@ -1,0 +1,27 @@
+# 复用 .ide/Dockerfile（已预装 MoonBit 工具链），push 与 PR 共用同一套检查。
+.moon-check: &moon-check
+  name: moon-check
+  docker:
+    build: .ide/Dockerfile
+  stages:
+    - name: MoonBit version
+      script: moon version --all
+
+    - name: Update MoonBit dependencies
+      script: moon update
+
+    - name: moon check
+      script: moon check --target native
+
+    - name: moon fmt --check
+      script: moon fmt --check
+
+    - name: moon test
+      script: moon test --target native
+
+
+"**":
+  push:
+    - <<: *moon-check
+  pull_request:
+    - <<: *moon-check

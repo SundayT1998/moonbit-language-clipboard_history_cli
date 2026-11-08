@@ -28,4 +28,3 @@ description = "Moonbit 实现的终端剪贴板历史 cli 工具"
 import {
   "moonbit-community/proton_clipboard@0.9.0",
 }
-
