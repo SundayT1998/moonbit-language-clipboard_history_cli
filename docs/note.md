@@ -9,3 +9,10 @@
 
 黑客松官网
 - https://moonbitlang.github.io/Hackathon2026/
+
+代码统计工具
+- tokei
+
+```bash
+docker run --rm -v $(pwd):/src ghcr.io/xampprocky/tokei:latest .
+```
