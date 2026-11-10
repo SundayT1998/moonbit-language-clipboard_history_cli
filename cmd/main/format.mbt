@@ -17,10 +17,9 @@ fn format_ago(ms : Int64, now_ms : Int64) -> String {
 ///|
 /// 当前 Unix 时间（毫秒）。
 ///
-/// `@env.now()` 返回的是**微秒**，先降到毫秒再转 `Int64`。
+/// `@env.now()` 返回的就是毫秒级 Unix 时间，直接转 `Int64` 即可。
 pub fn now_ms() -> Int64 {
-  let nanos = @env.now()
-  (nanos / 1000UL).reinterpret_as_int64()
+  @env.now().reinterpret_as_int64()
 }
 
 ///|
@@ -44,4 +43,11 @@ fn json_escape(s : String) -> String {
     }
   }
   out.to_string()
+}
+
+///|
+test "now_ms 是毫秒级 Unix 时间" {
+  // 2023-11 之后、3000 年之前：量级正确就落在这个区间
+  assert_true(now_ms() > 1_700_000_000_000L)
+  assert_true(now_ms() < 32_503_680_000_000L)
 }
