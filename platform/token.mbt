@@ -13,4 +13,4 @@ pub fn change_token() -> UInt64? {
 
 ///|
 /// 见 `stub.c`：拿不到原生接口时返回 0。
-extern "C" fn token_raw() -> UInt64 = "hk_clipboard_change_token"
+extern "C" fn token_raw() -> UInt64 = "mtuck_clipboard_change_token"

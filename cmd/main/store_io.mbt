@@ -1,13 +1,18 @@
 ///|
-/// 历史文件所在目录：优先 `HK_DIR`，否则 `$HOME/.local/share/hk`。
+/// 历史文件所在目录：优先 `MTUCK_DIR`，否则 `$HOME/.local/share/mtuck`。
 pub fn data_dir() -> String {
-  let custom = @env.get_env_var("HK_DIR")
+  let custom = @env.get_env_var("MTUCK_DIR")
   if custom is Some(dir) && dir != "" {
     return dir
   }
   match @env.get_env_var("HOME") {
-    Some(home) => if home != "" { "\{home}/.local/share/hk" } else { ".hk" }
-    None => ".hk"
+    Some(home) =>
+      if home != "" {
+        "\{home}/.local/share/mtuck"
+      } else {
+        ".mtuck"
+      }
+    None => ".mtuck"
   }
 }
 
@@ -39,12 +44,12 @@ pub async fn save(history : @history.History) -> Unit {
   }
   @fs.write_text(tmp, @history.encode(history)) catch {
     e => {
-      eprintln("hk: 写历史失败: \{e}")
+      eprintln("mtuck: 写历史失败: \{e}")
       return
     }
   }
   @fs.rename(tmp, path, replace=true) catch {
-    e => eprintln("hk: 保存历史失败: \{e}")
+    e => eprintln("mtuck: 保存历史失败: \{e}")
   }
 }
 

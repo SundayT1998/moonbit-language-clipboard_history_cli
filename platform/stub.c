@@ -6,7 +6,7 @@
 #include <objc/message.h>
 #include <objc/runtime.h>
 
-uint64_t hk_clipboard_change_token(void) {
+uint64_t mtuck_clipboard_change_token(void) {
   Class pbcls = objc_getClass("NSPasteboard");
   if (pbcls == NULL) {
     return 0;
@@ -23,12 +23,12 @@ uint64_t hk_clipboard_change_token(void) {
 #elif defined(_WIN32)
 #include <windows.h>
 
-uint64_t hk_clipboard_change_token(void) {
+uint64_t mtuck_clipboard_change_token(void) {
   return (uint64_t)GetClipboardSequenceNumber();
 }
 
 #else
 
-uint64_t hk_clipboard_change_token(void) { return 0; }
+uint64_t mtuck_clipboard_change_token(void) { return 0; }
 
 #endif

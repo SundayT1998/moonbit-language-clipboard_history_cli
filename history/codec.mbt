@@ -45,7 +45,7 @@ fn unescape_field(s : String) -> String {
 }
 
 ///|
-const FORMAT_HEADER : String = "hk-history\t1"
+const FORMAT_HEADER : String = "mtuck-history\t1"
 
 ///|
 /// 把历史编码成行式文本存储格式。每行六列，用 TAB 分隔：

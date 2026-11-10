@@ -3,7 +3,7 @@ async fn copy_to_clipboard(text : String) -> Int32 {
   match @clip.write_text(text) {
     Ok(_) => 0
     Err(msg) => {
-      eprintln("hk: 写剪贴板失败: \{msg}")
+      eprintln("mtuck: 写剪贴板失败: \{msg}")
       1
     }
   }
@@ -95,11 +95,11 @@ async fn command_watch(args : Args) -> Int32 {
           // 立刻落盘：Ctrl-C 或崩溃都不会丢掉刚复制的东西
           save(saved)
         }
-        None => eprintln("hk: 内容过长或为空，已忽略")
+        None => eprintln("mtuck: 内容过长或为空，已忽略")
       }
       true
     },
-    on_error=fn(msg) { eprintln("hk: 读剪贴板失败: \{msg}") },
+    on_error=fn(msg) { eprintln("mtuck: 读剪贴板失败: \{msg}") },
   )
   save(saved)
   0
@@ -115,7 +115,7 @@ async fn command_list(args : Args) -> Int32 {
   }
   if indexes.is_empty() {
     if history.is_empty() {
-      println("历史为空。先跑 `hk watch` 开始记录。")
+      println("历史为空。先跑 `mtuck watch` 开始记录。")
     } else {
       println("没有匹配的条目。")
     }
@@ -160,7 +160,7 @@ async fn command_show(args : Args) -> Int32 {
       let history = load()
       for idx in list {
         match history.get(idx) {
-          None => eprintln("hk: 没有第 \{idx} 条")
+          None => eprintln("mtuck: 没有第 \{idx} 条")
           Some(e) =>
             if e.is_secret && !args.full {
               println(
@@ -190,7 +190,7 @@ async fn command_copy(args : Args) -> Int32 {
         [idx] =>
           match history.get(idx) {
             None => {
-              eprintln("hk: 没有第 \{idx} 条")
+              eprintln("mtuck: 没有第 \{idx} 条")
               2
             }
             Some(e) => {
@@ -202,7 +202,7 @@ async fn command_copy(args : Args) -> Int32 {
             }
           }
         _ => {
-          eprintln("hk: copy 需要且只需要一个条目编号")
+          eprintln("mtuck: copy 需要且只需要一个条目编号")
           2
         }
       }
@@ -223,7 +223,7 @@ async fn command_pin(args : Args, pin : Bool) -> Int32 {
         for idx in list {
           match history.get(idx) {
             None => {
-              eprintln("hk: 没有第 \{idx} 条")
+              eprintln("mtuck: 没有第 \{idx} 条")
               failed = true
             }
             Some(e) => if e.pinned != pin { history.toggle_pin(idx) }
@@ -280,7 +280,7 @@ async fn command_clear(args : Args) -> Int32 {
     println("已清空 \{before - after} 条")
     if after > 0 {
       println(
-        "保留固定条目 \{after} 条；`hk clear -f` 连固定的也删",
+        "保留固定条目 \{after} 条；`mtuck clear -f` 连固定的也删",
       )
     }
   })

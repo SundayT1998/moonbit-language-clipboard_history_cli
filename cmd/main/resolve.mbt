@@ -6,7 +6,7 @@
 /// - `1,3,5` / `1-4` → 多个或区间，方便批量 `rm` / `pin`。
 pub fn resolve_indexes(args : Args) -> Result[Array[Int32], String] {
   if args.positional.is_empty() {
-    return Err("hk: 缺少条目编号（`hk list` 能看到编号）")
+    return Err("mtuck: 缺少条目编号（`mtuck list` 能看到编号）")
   }
   let out = []
   for token in args.positional {
@@ -28,7 +28,7 @@ pub fn resolve_indexes(args : Args) -> Result[Array[Int32], String] {
             }
             continue
           }
-          _ => return Err("hk: 看不懂的下标区间 `\{token}`")
+          _ => return Err("mtuck: 看不懂的下标区间 `\{token}`")
         }
       }
     }
@@ -36,14 +36,14 @@ pub fn resolve_indexes(args : Args) -> Result[Array[Int32], String] {
       for part in token.split(",") {
         match parse_index(part) {
           Some(i) => out.push(i)
-          None => return Err("hk: 看不懂的下标 `\{part}`")
+          None => return Err("mtuck: 看不懂的下标 `\{part}`")
         }
       }
       continue
     }
     match parse_index(token) {
       Some(i) => out.push(i)
-      None => return Err("hk: 看不懂的下标 `\{token}`")
+      None => return Err("mtuck: 看不懂的下标 `\{token}`")
     }
   }
   Ok(out)

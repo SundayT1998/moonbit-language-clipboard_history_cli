@@ -1,12 +1,12 @@
 ///|
-/// `hk` —— 终端剪贴板历史。
+/// `mtuck` —— 终端剪贴板历史。
 ///
 /// 所有命令共享一句话的定位：把系统剪贴板当成可回溯的时间线。
 async fn main {
   let args = @env.args()
   let code = run(args) catch {
     e => {
-      eprintln("hk: \{e}")
+      eprintln("mtuck: \{e}")
       1
     }
   }
@@ -27,7 +27,7 @@ async fn run(args : Array[String]) -> Int32 {
       0
     }
     "version" | "--version" => {
-      println("hk 0.1.0")
+      println("mtuck 0.1.0")
       0
     }
     "watch" => command_watch(parsed)
@@ -40,7 +40,7 @@ async fn run(args : Array[String]) -> Int32 {
     "clear" => command_clear(parsed)
     "stats" => command_stats(parsed)
     other => {
-      eprintln("未知命令 `\{other}`，试 `hk help`")
+      eprintln("未知命令 `\{other}`，试 `mtuck help`")
       2
     }
   }

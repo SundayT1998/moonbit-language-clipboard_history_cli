@@ -67,9 +67,9 @@ fn parse_args(argv : Array[String]) -> Args {
 ///|
 fn print_help() -> Unit {
   let text =
-    #|hk —— 终端剪贴板历史
+    #|mtuck —— 终端剪贴板历史
     #|
-    #|用法: hk <命令> [选项]
+    #|用法: mtuck <命令> [选项]
     #|
     #|命令:
     #|  watch            持续监听剪贴板，把每次复制写进历史（Ctrl-C 退出）
@@ -90,7 +90,6 @@ fn print_help() -> Unit {
     #|      --json       以 JSON 数组输出
     #|
     #|环境变量:
-    #|  HK_DIR     历史文件所在目录（默认 ~/.local/share/hk）
-    #|  HK_MAX     历史上限（默认 500）
+    #|  MTUCK_DIR   历史文件所在目录（默认 ~/.local/share/mtuck）
   println(text)
 }
