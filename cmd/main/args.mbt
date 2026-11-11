@@ -84,7 +84,7 @@ fn print_help() -> Unit {
     #|
     #|选项:
     #|  -n, --limit <k>  list 最多显示 k 条（默认 20，0 表示全部）
-    #|  -f, --full       显示完整内容，不打码不截断
+    #|  -f, --full       显示完整内容，不打码不截断 (--json 输出同样生效)
     #|  -p, --pinned     只显示固定条目
     #|  -q, --query <s>  按子串过滤
     #|      --json       以 JSON 数组输出

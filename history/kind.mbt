@@ -54,8 +54,37 @@ fn scheme_of_token(token : StringView) -> String {
 fn sensitive_keywords() -> Array[String] {
   [
     "password", "passwd", "pwd", "secret", "token", "api_key", "apikey", "access_key",
-    "private_key", "credential",
+    "private_key", "credential", "authorization", "bearer",
   ]
+}
+
+///|
+/// 裸密钥的前缀特征（小写比较），出现在任意位置都算密钥。
+fn secret_markers() -> Array[String] {
+  [
+    "bearer ", "sk-", "ghp_", "gho_", "ghs_", "github_pat_", "akia", "xoxb-", "xoxp-",
+  ]
+}
+
+///|
+/// `user:pass@` 形式的账号密码：`@` 前面同一段里要有冒号。
+fn has_userinfo(s : StringView) -> Bool {
+  let text = s.to_owned()
+  let mut seg = StringBuilder()
+  for c in text {
+    if c == '@' {
+      let part = seg.to_string()
+      if part.contains(":") && !part.contains("/") {
+        return true
+      }
+      seg = StringBuilder()
+    } else if c == '/' {
+      seg = StringBuilder()
+    } else {
+      seg.write_char(c)
+    }
+  }
+  false
 }
 
 ///|
@@ -69,6 +98,12 @@ pub fn classify(text : String) -> Kind {
   if contains_any_ci(trimmed, ["-----begin", "private key"]) {
     return secret_kind
   }
+  // 敏感子串优先于 URL / DSN 结构判定：`https://x/?token=...`、
+  // `authorization: bearer ...`、裸 `sk-...` 都必须在打码范围内。
+  if contains_any_ci(trimmed, secret_markers()) ||
+    contains_any_ci(trimmed, ["token=", "token:", "password=", "passwd="]) {
+    return secret_kind
+  }
   let words = sensitive_keywords()
   if !trimmed.contains("\n") {
     let first = match trimmed.split(" ").next() {
@@ -78,7 +113,7 @@ pub fn classify(text : String) -> Kind {
     let scheme = scheme_of_token(first)
     if scheme != "" {
       // `scheme://user:pass@host` 的连接串算密钥，纯 URL 不算
-      if first.contains("@") {
+      if has_userinfo(first) {
         return secret_kind
       }
       let plain : Array[String] = ["http", "https", "ftp", "file", "mailto"]

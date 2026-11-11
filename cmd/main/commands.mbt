@@ -13,6 +13,7 @@ async fn copy_to_clipboard(text : String) -> Int32 {
 fn print_json_entries(
   history : @history.History,
   indexes : Array[Int32],
+  full~ : Bool,
 ) -> Unit {
   let out = StringBuilder()
   out.write_string("[")
@@ -28,7 +29,14 @@ fn print_json_entries(
         out.write_string("{\"index\":\{idx},\"ts\":\{e.ts},\"hits\":\{e.hits}")
         out.write_string(",\"pinned\":\{e.pinned},\"kind\":\"\{e.kind_label}\"")
         out.write_string(",\"secret\":\{e.is_secret}")
-        out.write_string(",\"text\":\"\{json_escape(e.text)}\"}")
+        // 与列表视图一致：密钥默认打码，`-f` 才输出原文
+        let text = if e.is_secret && !full {
+          @history.mask(@history.summary(e.text, 24))
+        } else {
+          e.text
+        }
+        out.write_string(",\"redacted\":\{(text != e.text)}")
+        out.write_string(",\"text\":\"\{json_escape(text)}\"}")
       }
     }
   }
@@ -108,9 +116,21 @@ async fn command_watch(args : Args) -> Int32 {
 ///|
 async fn command_list(args : Args) -> Int32 {
   let history = load()
+  // 旧版本写入的条目没做充分识别，这里按当前规则重新判定一遍，
+  // 避免早已落盘的密钥继续明文显示。
+  for i, e in history.entries {
+    if !e.is_secret {
+      let kind = @history.classify(e.text)
+      history.entries[i] = {
+        ..e,
+        kind_label: kind.label,
+        is_secret: kind.is_secret,
+      }
+    }
+  }
   let indexes = select(history, args)
   if args.json {
-    print_json_entries(history, indexes)
+    print_json_entries(history, indexes, full=args.full)
     return 0
   }
   if indexes.is_empty() {

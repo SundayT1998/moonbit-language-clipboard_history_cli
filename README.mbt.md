@@ -152,7 +152,8 @@ mtuck list -q moon   # 按子串搜索
 ★ #1  2 分钟前  ×3  [url]  https://example.com
 ```
 
-密钥类条目在预览里会被打码；`-f` 显示原文。
+密钥类条目在预览里会被打码（`--json` 输出同样打码，并带 `redacted` 字段标记）；`-f` 显示原文。
+旧版本写入的条目在 `list` 时会按当前规则重新判定，避免漏判的密钥继续明文显示。
 
 ### `--json`
 
@@ -220,7 +221,7 @@ mtuck list -q "$(xclip -o -selection clipboard)"
 | `url` | `http(s)://`、`ftp://`、`file://`、`mailto:` 等 | 否 |
 | `dsn` | 其他 `scheme://…` 形式，如 `postgres://host/db` | 否 |
 | `jwt` | `eyJ…` 开头且含三个 `.` 段 | 是 |
-| `secret` | 私钥块、`password=`/`api_key=`/`token=` 等赋值、`scheme://user:pass@host` | 是 |
+| `secret` | 私钥块；`password=`/`api_key=`/`token=` 等赋值；`authorization` / `bearer` 头；`sk-`/`ghp_`/`AKIA` 等裸密钥前缀；任意 `scheme://user:pass@host` | 是 |
 | `text` | 其他 | 否 |
 | `empty` | 空内容 | 否 |
 
