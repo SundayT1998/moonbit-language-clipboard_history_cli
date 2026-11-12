@@ -291,16 +291,25 @@ async fn command_remove(args : Args) -> Int32 {
       let sorted = list.copy()
       sorted.sort_by(fn(a, b) { b.compare(a) })
       let mut removed = 0
+      let mut missing = false
       with_history(fn(history) {
         for idx in sorted {
-          if history.get(idx) is Some(_) {
+          // 删除会改变下标，所以按降序处理；越界的编号单独报出来
+          if idx >= history.len() {
+            eprintln("mtuck: 没有第 \{idx} 条")
+            missing = true
+          } else {
             history.remove_at(idx)
             removed = removed + 1
           }
         }
       })
       println("已删除 \{removed} 条")
-      0
+      if missing {
+        2
+      } else {
+        0
+      }
     }
   }
 }
