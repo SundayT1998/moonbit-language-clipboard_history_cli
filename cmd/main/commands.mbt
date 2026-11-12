@@ -84,33 +84,48 @@ async fn command_watch(args : Args) -> Int32 {
     println("已有 \{history.len()} 条历史")
   }
   let saved = history
-  @watch.watch_loop(
-    watcher,
-    interval,
-    async fn(text) {
-      let result = saved.push(text, now_ms())
-      match result {
-        Some(_) => {
-          let kind = @history.classify(text)
-          let preview = @history.summary(text, 48)
-          if kind.is_secret {
-            println(
-              "+ [\{kind.label}] \{@history.mask(preview)}  (\{text.length()} 字符)",
-            )
-          } else {
-            println("+ [\{kind.label}] \{preview}")
-          }
-          // 立刻落盘：Ctrl-C 或崩溃都不会丢掉刚复制的东西
-          save(saved)
-        }
-        None => eprintln("mtuck: 内容过长或为空，已忽略")
-      }
-      true
-    },
-    on_error=fn(msg) { eprintln("mtuck: 读剪贴板失败: \{msg}") },
-  )
+  run_watch(saved, watcher, interval)
   save(saved)
   0
+}
+
+///|
+async fn run_watch(
+  saved : @history.History,
+  watcher : @watch.Watcher,
+  interval : Int32,
+) -> Unit {
+  // 回调跑在 `watch_loop` 的子任务里，拿不到父任务的执行上下文；
+  // 放进任务组里跑，`save` 才是真正被执行（而不是创建一个被丢弃的 future）。
+  @async.with_task_group(fn(group) {
+    group.spawn_bg(async fn() {
+      @watch.watch_loop(
+        watcher,
+        interval,
+        async fn(text) {
+          let result = saved.push(text, now_ms())
+          match result {
+            Some(_) => {
+              let kind = @history.classify(text)
+              let preview = @history.summary(text, 48)
+              if kind.is_secret {
+                println(
+                  "+ [\{kind.label}] \{@history.mask(preview)}  (\{text.length()} 字符)",
+                )
+              } else {
+                println("+ [\{kind.label}] \{preview}")
+              }
+              // 立刻落盘：Ctrl-C 或崩溃都不会丢掉刚复制的东西
+              save(saved)
+            }
+            None => eprintln("mtuck: 内容过长或为空，已忽略")
+          }
+          true
+        },
+        on_error=fn(msg) { eprintln("mtuck: 读剪贴板失败: \{msg}") },
+      )
+    })
+  })
 }
 
 ///|

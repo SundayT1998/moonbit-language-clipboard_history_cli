@@ -41,6 +41,7 @@ pub(all) struct Watcher {
   read : async () -> Result[String?, String]
   mut last_token : UInt64?
   mut last_text : String?
+  /// 上一次读取的失败信息，用于错误去重
 }
 
 ///|
@@ -61,6 +62,9 @@ pub fn Watcher::new(
 ///|
 /// 轮询一次。只有文本真的变了才返回 `Changed`。
 ///
+/// 无论读取成功与否都会刷新 `last_token`：后端有变更计数时，失败的那一次
+/// 不会被无限重试，`watch_loop` 的错误去重才能生效。
+///
 /// Linux 下 `xclip` 没有“值有没有变”的查询接口，只能读文本比对；
 /// macOS 的 `NSPasteboard.changeCount`、Windows 的
 /// `GetClipboardSequenceNumber` 是现成的轻量变更计数，省掉整段文本的读。
@@ -74,7 +78,7 @@ pub async fn Watcher::poll(self : Watcher) -> Poll {
     let read = self.read
     read()
   } catch {
-    e => return Failed(e.to_string())
+    e => Err(e.to_string())
   }
   match text {
     Err(msg) => Failed(msg)
@@ -100,23 +104,24 @@ pub async fn watch_loop(
   on_change : async (String) -> Bool,
   on_error~ : async (String) -> Unit = fn(_) { () },
 ) -> Unit {
-  let mut last_error : String? = None
+  // 错误去重状态：反复读到同样的失败只报一次。
+  let mut reported : String? = None
   while true {
     match watcher.poll() {
       Changed(text) => {
-        last_error = None
+        reported = None
         if !on_change(text) {
           break
         }
       }
-      Idle => last_error = None
+      Idle => reported = None
       Failed(msg) => {
-        let repeated = match last_error {
+        let repeated = match reported {
           Some(prev) => prev == msg
           None => false
         }
         if !repeated {
-          last_error = Some(msg)
+          reported = Some(msg)
           on_error(msg)
         }
       }
