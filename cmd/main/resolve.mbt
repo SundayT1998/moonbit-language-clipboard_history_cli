@@ -23,6 +23,13 @@ pub fn resolve_indexes(args : Args) -> Result[Array[Int32], String] {
         let hi = parse_index(parts[1])
         match (lo, hi) {
           (Some(a), Some(b)) if a <= b => {
+            // 上限与历史上限对齐：超过的区间大概率是手滑，直接拒绝，
+            // 避免 `rm 1-99999999` 先展开一亿个下标把内存撑爆。
+            if b - a >= @history.max_entries {
+              return Err(
+                "mtuck: 区间 `\{token}` 过长（最多 \{@history.max_entries} 条）",
+              )
+            }
             for i in a..<=b {
               out.push(i)
             }
