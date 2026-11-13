@@ -17,3 +17,14 @@ test "parse_args 拒绝非法或缺失的取值" {
   // 合法取值不受影响
   assert_true(parse_args(["list", "-n", "0"]) is Ok(a) && a.limit == 0)
 }
+
+///|
+test "watch 间隔用独立选项，不再与 -n 冲突" {
+  assert_true(parse_args(["watch", "-n", "5"]) is Ok(a) && a.interval is None)
+  assert_true(
+    parse_args(["watch", "--interval", "100"]) is Ok(a) &&
+    a.interval is Some(100),
+  )
+  assert_true(parse_args(["watch", "-i", "0"]) is Err(_))
+  assert_true(parse_args(["watch", "-i", "abc"]) is Err(_))
+}

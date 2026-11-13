@@ -29,6 +29,7 @@ pub(all) struct Args {
   pinned_only : Bool
   query : String?
   json : Bool
+  interval : Int32?
 }
 
 // Type aliases

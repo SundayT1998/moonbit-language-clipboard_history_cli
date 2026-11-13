@@ -66,10 +66,9 @@ fn select(history : @history.History, args : Args) -> Array[Int32] {
 
 ///|
 async fn command_watch(args : Args) -> Int32 {
-  let interval = if args.limit > 0 && args.limit < 1000 {
-    args.limit
-  } else {
-    400
+  let interval = match args.interval {
+    Some(ms) => ms
+    None => 400
   }
   let history = load()
   let initial : String? = match @clip.read_text() {

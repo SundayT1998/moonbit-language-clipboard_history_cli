@@ -12,6 +12,8 @@ pub(all) struct Args {
   /// 搜索词，`None` 表示不搜索
   query : String?
   json : Bool
+  /// `watch` 的轮询间隔（毫秒），`None` 用默认值；与 `-n`（列表条数）分开
+  interval : Int32?
 }
 
 ///|
@@ -24,6 +26,7 @@ fn default_args(command : String) -> Args {
     pinned_only: false,
     query: None,
     json: false,
+    interval: None,
   }
 }
 
@@ -44,6 +47,21 @@ fn parse_args(argv : Array[String]) -> Result[Args, String] {
         Some(k) if k >= 0 => parsed = { ..parsed, limit: k, }
         _ =>
           return Err("mtuck: `\{arg}` 需要非负整数，收到 `\{value}`")
+      }
+      i = i + 1
+    } else if arg == "--interval" || arg == "-i" {
+      if i + 1 >= argv.length() {
+        return Err("mtuck: 选项 `\{arg}` 缺少取值")
+      }
+      let value = argv[i + 1]
+      let ms = Some(@string.parse_int(value)) catch { _ => None }
+      match ms {
+        Some(k) if k > 0 && k <= 60_000 =>
+          parsed = { ..parsed, interval: Some(k), }
+        _ =>
+          return Err(
+            "mtuck: `\{arg}` 需要在 1..=60000 毫秒之间，收到 `\{value}`",
+          )
       }
       i = i + 1
     } else if arg == "-f" || arg == "--full" {
@@ -88,6 +106,7 @@ fn print_help() -> Unit {
     #|
     #|选项:
     #|  -n, --limit <k>  list 最多显示 k 条（默认 20，0 表示全部）
+    #|  -i, --interval <ms>  watch 轮询间隔（默认 400ms）
     #|  -f, --full       显示完整内容，不打码不截断 (--json 输出同样生效)
     #|  -p, --pinned     只显示固定条目
     #|  -q, --query <s>  按子串过滤
