@@ -20,7 +20,13 @@ async fn run(args : Array[String]) -> Int32 {
   } else {
     args[1:].to_owned()
   }
-  let parsed = parse_args(argv)
+  let parsed = match parse_args(argv) {
+    Ok(parsed) => parsed
+    Err(msg) => {
+      eprintln(msg)
+      return 2
+    }
+  }
   match parsed.command {
     "help" | "--help" | "-h" | "" => {
       print_help()
