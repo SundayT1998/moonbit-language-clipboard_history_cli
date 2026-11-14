@@ -39,14 +39,28 @@ pub async fn save(history : @history.History) -> Unit {
   let dir = data_dir()
   let path = history_path()
   let tmp = "\{path}.tmp"
-  @fs.mkdir(dir, recursive=true, allow_exist=true) catch {
+  // 历史文件里有密码和 token 原文：目录 0700、文件 0600，只给当前用户读。
+  @fs.mkdir(dir, permission=0o700, recursive=true, allow_exist=true) catch {
     _ => ()
   }
-  @fs.write_text(tmp, @history.encode(history)) catch {
+  // 收紧已存在目录的权限（老版本建出来的可能是 0755）
+  @fs.chmod(dir, 0o700) catch {
+    _ => ()
+  }
+  @fs.write_text(
+    tmp,
+    @history.encode(history),
+    permission=0o600,
+    create_mode=CreateOrTruncate,
+  ) catch {
     e => {
       eprintln("mtuck: 写历史失败: \{e}")
       return
     }
+  }
+  // `permission` 只对新建文件生效，tmp 可能来自更早的版本；rename 之前再收一次
+  @fs.chmod(tmp, 0o600) catch {
+    _ => ()
   }
   @fs.rename(tmp, path, replace=true) catch {
     e => eprintln("mtuck: 保存历史失败: \{e}")
