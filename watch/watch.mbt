@@ -65,8 +65,8 @@ pub fn Watcher::new(
 /// 无论读取成功与否都会刷新 `last_token`：后端有变更计数时，失败的那一次
 /// 不会被无限重试，`watch_loop` 的错误去重才能生效。
 ///
-/// Linux 下 `xclip` 没有“值有没有变”的查询接口，只能读文本比对；
-/// macOS 的 `NSPasteboard.changeCount`、Windows 的
+/// Linux 下（不论后端是 `wl-paste`、`xclip` 还是 `xsel`）都没有“值有没有变”的
+/// 查询接口，只能读文本比对；macOS 的 `NSPasteboard.changeCount`、Windows 的
 /// `GetClipboardSequenceNumber` 是现成的轻量变更计数，省掉整段文本的读。
 pub async fn Watcher::poll(self : Watcher) -> Poll {
   let token = @platform.change_token()
