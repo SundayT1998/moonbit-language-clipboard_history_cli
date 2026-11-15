@@ -3,6 +3,7 @@ import {
   "moonbitlang/core/async",
   "moonbitlang/core/async/aqueue",
   "moonbitlang/core/async/fs",
+  "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/env",
   "moonbitlang/core/string",
   "moonbit-community/proton_clipboard" @clip,

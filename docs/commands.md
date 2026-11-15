@@ -12,7 +12,7 @@
 | `mtuck unpin <n>` | | 取消固定 |
 | `mtuck rm <n>` | `remove` | 删除条目 |
 | `mtuck clear` | | 清空历史（默认保留固定条目） |
-| `mtuck stats` | | 查看条目数、固定数、疑似密钥数、总字符、类型分布 |
+| `mtuck stats` | | 查看条目数、固定数、疑似密钥数、总字符 / 总字节、类型分布 |
 | `mtuck help` | `-h` / `--help` | 帮助 |
 | `mtuck version` | `--version` | 版本号 |
 
@@ -57,6 +57,9 @@
 密钥类条目在预览里会被打码（`--json` 输出同样打码，并带 `redacted` 字段标记）；`-f` 显示原文。
 旧版本写入的条目在 `list` 时会按当前规则重新判定，避免漏判的密钥继续明文显示。
 
+`stats` 同时报“总字符”和“总字节”：前者是字符数（与 `text.length()` 一致），
+后者是 UTF-8 编码后的字节数，与单条 256 KiB 上限、`--json` 里的 `bytes` 同一口径。
+
 ### `--json`
 
 ```console
@@ -65,7 +68,7 @@ $ mtuck list --json -n 2
  {"index":1,"ts":1731599000000,"hits":1,"pinned":true,"kind":"text","secret":false,"text":"npm run build"}]
 
 $ mtuck stats --json
-{"total":42,"pinned":2,"secret":3,"chars":8123,"path":"/home/me/.local/share/mtuck/history.tsv","kinds":{"text":30,"url":9,"secret":3}}
+{"total":42,"pinned":2,"secret":3,"chars":8123,"bytes":8300,"path":"/home/me/.local/share/mtuck/history.tsv","kinds":{"text":30,"url":9,"secret":3}}
 ```
 
 ### 退出码

@@ -442,6 +442,7 @@ async fn command_stats(args : Args, path~ : String = history_path()) -> Int32 {
   let history = load_from(path)
   let mut pinned = 0
   let mut secrets = 0
+  let mut chars = 0
   let mut bytes = 0
   let kinds : Map[String, Int32] = Map([])
   for e in history.entries {
@@ -451,7 +452,9 @@ async fn command_stats(args : Args, path~ : String = history_path()) -> Int32 {
     if e.is_secret {
       secrets = secrets + 1
     }
-    bytes = bytes + e.text.length()
+    // 字符数与 UTF-8 字节数口径不同：单条上限按字节算，这里两个都报
+    chars = chars + e.text.length()
+    bytes = bytes + @utf8.encode(e.text).length()
     let count = kinds.get(e.kind_label).unwrap_or(0)
     kinds[e.kind_label] = count + 1
   }
@@ -459,7 +462,8 @@ async fn command_stats(args : Args, path~ : String = history_path()) -> Int32 {
     let out = StringBuilder()
     out.write_string("{\"total\":\{history.len()}")
     out.write_string(",\"pinned\":\{pinned},\"secret\":\{secrets}")
-    out.write_string(",\"chars\":\{bytes}")
+    out.write_string(",\"chars\":\{chars}")
+    out.write_string(",\"bytes\":\{bytes}")
     out.write_string(",\"path\":\"\{json_escape(path)}\"")
     out.write_string(",\"kinds\":{")
     let mut first = true
@@ -477,7 +481,8 @@ async fn command_stats(args : Args, path~ : String = history_path()) -> Int32 {
   println("条目     \{history.len()} / \{@history.max_entries}")
   println("已固定   \{pinned}")
   println("疑似密钥 \{secrets}")
-  println("总字符   \{bytes}")
+  println("总字符   \{chars}")
+  println("总字节   \{bytes}")
   println("存储     \{path}")
   if !kinds.is_empty() {
     let pairs = kinds.to_array()
