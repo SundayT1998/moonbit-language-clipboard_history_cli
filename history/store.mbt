@@ -13,7 +13,7 @@ pub(all) struct Entry {
 }
 
 ///|
-/// 单条内容上限（字节，按 UTF-8 估算）
+/// 单条内容上限（UTF-8 编码后的真实字节数，不是字符数）
 pub let max_entry_bytes : Int32 = 256 * 1024
 
 ///|

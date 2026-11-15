@@ -194,6 +194,24 @@ test "push 恰好等于上限的内容可以写入，多一字节则忽略" {
 }
 
 ///|
+test "push 的长度上限按 UTF-8 字节而不是字符数" {
+  let h = mk()
+  // 纯 ASCII：上限就是字符数，不能按 ×4 提前拒绝
+  let ascii = "a".repeat(100)
+  assert_eq(h.push(ascii, 1L, max_bytes=100), Some(0))
+  // 100 个中文字符 = 300 字节：按字符数算会被误拒，按字节算不会
+  let cjk = "字".repeat(100)
+  assert_eq(h.push(cjk, 1L, max_bytes=300), Some(0))
+  assert_eq(h.push(cjk, 2L, max_bytes=299), None)
+  // 4 字节的 emoji 也要按真实字节数算
+  assert_eq(h.push("😀", 3L, max_bytes=4), Some(0))
+  assert_eq(h.push("😀😀", 4L, max_bytes=7), None)
+  // 换行会被规范成 `\n`（1 字节），`\r\n` 按 2 字节算的话会误拒
+  assert_eq(h.push("abc\r\ndef", 5L, max_bytes=7), Some(0))
+  assert_eq(h.len(), 4)
+}
+
+///|
 test "clear 默认清空全部，keep_pinned 只留固定" {
   let h = mk()
   h.push("a", 1L) |> ignore
