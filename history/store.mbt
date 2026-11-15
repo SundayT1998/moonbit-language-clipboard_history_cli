@@ -2,7 +2,7 @@
 /// 一条剪贴板历史。
 pub(all) struct Entry {
   text : String
-  /// 最近一次复制的时间（毫秒）；合并时刷新，`list` 里的“多久以前”指它
+  /// 首次出现时间（毫秒）
   ts : Int64
   /// 重复复制次数
   hits : Int32
@@ -87,8 +87,8 @@ pub fn History::clear(self : History, keep_pinned~ : Bool = false) -> Unit {
 ///
 /// 规则：
 /// - 空内容、超长内容忽略，返回 `None`；
-/// - 与最新一条相同 → hits + 1，`ts` 刷新为本次复制时间；
-/// - 与更早的未固定条目相同 → 合并（hits + 1）并提到最前，`ts` 同样刷新；
+/// - 与最新一条相同 → hits + 1；
+/// - 与更早的未固定条目相同 → 合并（hits + 1）并提到最前；
 /// - 固定条目不参与合并。
 pub fn History::push(
   self : History,
@@ -107,7 +107,7 @@ pub fn History::push(
       head.text == norm &&
       head.kind_label == kind.label &&
       head.is_secret == kind.is_secret {
-      self.entries[0] = { ..head, ts: now_ms, hits: head.hits + 1, }
+      self.entries[0] = { ..head, hits: head.hits + 1, }
       return Some(0)
     }
   }
@@ -119,7 +119,7 @@ pub fn History::push(
       let old = self.entries[idx]
       let fresh : Entry = {
         text: old.text,
-        ts: now_ms,
+        ts: old.ts,
         hits: old.hits + 1,
         pinned: false,
         kind_label: kind.label,
