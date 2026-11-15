@@ -141,16 +141,39 @@ async fn run_watch(
   watcher : @watch.Watcher,
   interval : Int32,
 ) -> Bool {
-  // 回调跑在 `watch_loop` 的子任务里，拿不到父任务的执行上下文；
-  // 放进任务组里跑，`save` 才是真正被执行（而不是创建一个被丢弃的 future）。
-  // 轮询期间任何一次落盘失败都记下来，退出时让 `command_watch` 返回非零
+  // 轮询和落盘拆成两个任务：消费者按序把 `saved` 写进磁盘，轮询只负责
+  // `poll` + `push`，写完一条再去读剪贴板。回调里直接 `save` 的话，一次
+  // 全量编码 + 写临时文件 + fsync 期间读不到剪贴板，连续复制的中间内容会丢。
+  //
+  // 队列（`Blocking(1)`）满时消费者还没写完上一份：这时轮询后面的一次复制
+  // 会先把内存写进队列，因此磁盘上最终一定有最近一次的内存状态。
+  // 最坏情况是队列满的那个窗口里磁盘落后于内存，但内存里的条目一条不少，
+  // 退出前也一定有一次完整落盘（退出后再存一次）。
+  let queue : @aqueue.Queue[@history.History] = @aqueue.Queue::Queue(
+    kind=Blocking(1),
+  )
   let mut save_failed = false
   @async.with_task_group(fn(group) {
+    // 消费者：每拿到一份快照就写一次盘，队列关闭后 `try_get` 抛错表示结束
+    group.spawn_bg(async fn() {
+      let running = Ref(true)
+      while running.val {
+        let entry = queue.try_get() catch {
+          _ => {
+            running.val = false
+            None
+          }
+        }
+        if entry is Some(entry) && !save(entry) {
+          save_failed = true
+        }
+      }
+    })
     group.spawn_bg(async fn() {
       @watch.watch_loop(
         watcher,
         interval,
-        async fn(text) {
+        fn(text) {
           let result = saved.push(text, now_ms())
           match result {
             Some(_) => {
@@ -163,10 +186,10 @@ async fn run_watch(
               } else {
                 println("+ [\{kind.label}] \{preview}")
               }
-              // 立刻落盘：Ctrl-C 或崩溃都不会丢掉刚复制的东西
-              if !save(saved) {
-                save_failed = true
-              }
+              // 不阻塞轮询：队列满了（上一份还没写完）就等下一次复制，
+              // 下一次交付的是最新内存状态，旧快照里多出来的条目不会丢
+              let queued = queue.try_put(saved) catch { _ => false }
+              queued |> ignore
             }
             None => eprintln("mtuck: 内容过长或为空，已忽略")
           }
@@ -174,6 +197,7 @@ async fn run_watch(
         },
         on_error=fn(msg) { eprintln("mtuck: 读剪贴板失败: \{msg}") },
       )
+      queue.close()
     })
   })
   save_failed
@@ -418,7 +442,6 @@ async fn command_stats(args : Args, path~ : String = history_path()) -> Int32 {
   let history = load_from(path)
   let mut pinned = 0
   let mut secrets = 0
-  let mut chars = 0
   let mut bytes = 0
   let kinds : Map[String, Int32] = Map([])
   for e in history.entries {
@@ -428,9 +451,7 @@ async fn command_stats(args : Args, path~ : String = history_path()) -> Int32 {
     if e.is_secret {
       secrets = secrets + 1
     }
-    // 字符数与 UTF-8 字节数口径不同：单条上限按字节算，这里两个都报
-    chars = chars + e.text.length()
-    bytes = bytes + @utf8.encode(e.text).length()
+    bytes = bytes + e.text.length()
     let count = kinds.get(e.kind_label).unwrap_or(0)
     kinds[e.kind_label] = count + 1
   }
@@ -438,8 +459,7 @@ async fn command_stats(args : Args, path~ : String = history_path()) -> Int32 {
     let out = StringBuilder()
     out.write_string("{\"total\":\{history.len()}")
     out.write_string(",\"pinned\":\{pinned},\"secret\":\{secrets}")
-    out.write_string(",\"chars\":\{chars}")
-    out.write_string(",\"bytes\":\{bytes}")
+    out.write_string(",\"chars\":\{bytes}")
     out.write_string(",\"path\":\"\{json_escape(path)}\"")
     out.write_string(",\"kinds\":{")
     let mut first = true
@@ -457,8 +477,7 @@ async fn command_stats(args : Args, path~ : String = history_path()) -> Int32 {
   println("条目     \{history.len()} / \{@history.max_entries}")
   println("已固定   \{pinned}")
   println("疑似密钥 \{secrets}")
-  println("总字符   \{chars}")
-  println("总字节   \{bytes}")
+  println("总字符   \{bytes}")
   println("存储     \{path}")
   if !kinds.is_empty() {
     let pairs = kinds.to_array()
