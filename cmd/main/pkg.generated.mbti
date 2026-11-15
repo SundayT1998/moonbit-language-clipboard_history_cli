@@ -1,8 +1,8 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "SundayT1998/clipboard_history_cli/cmd/main"
+package "SundayT1998/mtuck/cmd/main"
 
 import {
-  "SundayT1998/clipboard_history_cli/history",
+  "SundayT1998/mtuck/history",
 }
 
 // Values

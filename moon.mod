@@ -9,7 +9,7 @@
 //   "moonbitlang/x@0.4.6",
 // }
 
-name = "SundayT1998/clipboard_history_cli"
+name = "SundayT1998/mtuck"
 
 version = "0.1.0"
 

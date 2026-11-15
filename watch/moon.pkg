@@ -2,7 +2,7 @@
 import {
   "moonbitlang/core/async",
   "moonbitlang/core/debug",
-  "SundayT1998/clipboard_history_cli/platform",
+  "SundayT1998/mtuck/platform",
 }
 
 supported_targets = "native"

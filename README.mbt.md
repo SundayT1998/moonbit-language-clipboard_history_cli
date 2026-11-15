@@ -60,13 +60,13 @@ $ mtuck list
 ### 从源码构建
 
 ```bash
-git clone https://github.com/SundayT1998/clipboard_history_cli.git
-cd clipboard_history_cli
+git clone https://github.com/SundayT1998/moonbit-language-clipboard_history_cli.git
+cd moonbit-language-clipboard_history_cli
 moon update
 moon build --release --target native
 ```
 
-`moon.mod` 里的模块名仍是 `clipboard_history_cli`；产物是 `main.exe`，安装时改成 `mtuck` 放进 `PATH`：
+`moon.mod` 里的模块名为 `mtuck`；产物是 `main.exe`，安装时改成 `mtuck` 放进 `PATH`：
 
 ```bash
 install -m 755 _build/native/release/build/cmd/main/main.exe ~/.local/bin/mtuck

@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "SundayT1998/clipboard_history_cli/watch"
+package "SundayT1998/mtuck/watch"
 
 import {
   "moonbitlang/core/debug",
