@@ -31,55 +31,101 @@ fn default_args(command : String) -> Args {
 }
 
 ///|
+fn parse_i32(s : String) -> Int32? {
+  Some(@string.parse_int(s)) catch {
+    _ => None
+  }
+}
+
+///|
+/// 取值占了几个 argv 位置：`-n 5` 占一个，`--limit=5` 不占。
+fn value_step(inline : String?) -> Int32 {
+  match inline {
+    Some(_) => 0
+    None => 1
+  }
+}
+
+///|
 fn parse_args(argv : Array[String]) -> Result[Args, String] {
   let mut parsed = default_args(if argv.is_empty() { "" } else { argv[0] })
   let positional = []
   let mut i = if argv.is_empty() { 0 } else { 1 }
+  let mut only_positional = false
   while i < argv.length() {
     let arg = argv[i]
-    if arg == "-n" || arg == "--limit" {
-      if i + 1 >= argv.length() {
-        return Err("mtuck: 选项 `\{arg}` 缺少取值")
-      }
-      let value = argv[i + 1]
-      let limit = Some(@string.parse_int(value)) catch { _ => None }
-      match limit {
-        Some(k) if k >= 0 => parsed = { ..parsed, limit: k, }
-        _ =>
-          return Err("mtuck: `\{arg}` 需要非负整数，收到 `\{value}`")
-      }
-      i = i + 1
-    } else if arg == "--interval" || arg == "-i" {
-      if i + 1 >= argv.length() {
-        return Err("mtuck: 选项 `\{arg}` 缺少取值")
-      }
-      let value = argv[i + 1]
-      let ms = Some(@string.parse_int(value)) catch { _ => None }
-      match ms {
-        Some(k) if k > 0 && k <= 60_000 =>
-          parsed = { ..parsed, interval: Some(k), }
-        _ =>
-          return Err(
-            "mtuck: `\{arg}` 需要在 1..=60000 毫秒之间，收到 `\{value}`",
-          )
-      }
-      i = i + 1
-    } else if arg == "-f" || arg == "--full" {
-      parsed = { ..parsed, full: true, }
-    } else if arg == "-p" || arg == "--pinned" {
-      parsed = { ..parsed, pinned_only: true, }
-    } else if arg == "-q" || arg == "--query" {
-      if i + 1 >= argv.length() {
-        return Err("mtuck: 选项 `\{arg}` 缺少取值")
-      }
-      parsed = { ..parsed, query: Some(argv[i + 1]), }
-      i = i + 1
-    } else if arg == "--json" {
-      parsed = { ..parsed, json: true, }
-    } else if arg.has_prefix("-") && arg != "-" {
-      eprintln("忽略未知选项 `\{arg}`")
-    } else {
+    if only_positional {
       positional.push(arg)
+    } else if arg == "--" {
+      // `--` 之后全部当下标，方便 `mtuck rm -- -1` 这种边界写法
+      only_positional = true
+    } else {
+      let (name, inline) = match arg.find("=") {
+        Some(eq) if arg.has_prefix("--") =>
+          (arg[:eq].to_owned(), Some(arg[eq + 1:].to_owned()))
+        _ => (arg, None)
+      }
+      // 取选项取值：支持 `-n 5` 与 `--limit=5` 两种写法
+      let inline_v = inline
+      let next_arg : String? = if i + 1 < argv.length() {
+        Some(argv[i + 1])
+      } else {
+        None
+      }
+      let value_of = fn() -> String? {
+        match inline_v {
+          Some(v) => Some(v)
+          None => next_arg
+        }
+      }
+      if name == "-n" || name == "--limit" {
+        let value = value_of()
+        match value {
+          Some(v) =>
+            match parse_i32(v) {
+              Some(k) if k >= 0 => parsed = { ..parsed, limit: k, }
+              _ =>
+                return Err(
+                  "mtuck: `\{name}` 需要非负整数，收到 `\{v}`",
+                )
+            }
+          None => return Err("mtuck: 选项 `\{name}` 缺少取值")
+        }
+        i = i + value_step(inline)
+      } else if name == "--interval" || name == "-i" {
+        let value = value_of()
+        match value {
+          Some(v) =>
+            match parse_i32(v) {
+              Some(k) if k > 0 && k <= 60_000 =>
+                parsed = { ..parsed, interval: Some(k), }
+              _ =>
+                return Err(
+                  "mtuck: `\{name}` 需要在 1..=60000 毫秒之间，收到 `\{v}`",
+                )
+            }
+          None => return Err("mtuck: 选项 `\{name}` 缺少取值")
+        }
+        i = i + value_step(inline)
+      } else if name == "-q" || name == "--query" {
+        match value_of() {
+          Some(v) => parsed = { ..parsed, query: Some(v), }
+          None => return Err("mtuck: 选项 `\{name}` 缺少取值")
+        }
+        i = i + value_step(inline)
+      } else if inline is Some(_) {
+        return Err("mtuck: 选项 `\{name}` 不接受取值")
+      } else if arg == "-f" || arg == "--full" {
+        parsed = { ..parsed, full: true, }
+      } else if arg == "-p" || arg == "--pinned" {
+        parsed = { ..parsed, pinned_only: true, }
+      } else if arg == "--json" {
+        parsed = { ..parsed, json: true, }
+      } else if arg.has_prefix("-") && arg != "-" {
+        eprintln("忽略未知选项 `\{arg}`")
+      } else {
+        positional.push(arg)
+      }
     }
     i = i + 1
   }
