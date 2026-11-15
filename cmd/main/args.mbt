@@ -14,8 +14,6 @@ pub(all) struct Args {
   json : Bool
   /// `watch` 的轮询间隔（毫秒），`None` 用默认值；与 `-n`（列表条数）分开
   interval : Int32?
-  /// 原始参数（不含程序名），按命令校验选项时要用
-  argv : Array[String]
 }
 
 ///|
@@ -29,7 +27,6 @@ fn default_args(command : String) -> Args {
     query: None,
     json: false,
     interval: None,
-    argv: [],
   }
 }
 
@@ -51,10 +48,7 @@ fn value_step(inline : String?) -> Int32 {
 
 ///|
 fn parse_args(argv : Array[String]) -> Result[Args, String] {
-  let mut parsed = {
-    ..default_args(if argv.is_empty() { "" } else { argv[0] }),
-    argv: argv[:].to_owned(),
-  }
+  let mut parsed = default_args(if argv.is_empty() { "" } else { argv[0] })
   let positional = []
   let mut i = if argv.is_empty() { 0 } else { 1 }
   let mut only_positional = false
@@ -128,87 +122,14 @@ fn parse_args(argv : Array[String]) -> Result[Args, String] {
       } else if arg == "--json" {
         parsed = { ..parsed, json: true, }
       } else if arg.has_prefix("-") && arg != "-" {
-        // 与缺值 / 取值非法一样按用法错误处理：拼错的选项要在脚本里被发现
-        return Err(
-          "mtuck: 未知选项 `\{arg}`（`--` 之后的内容按位置参数处理）",
-        )
+        eprintln("忽略未知选项 `\{arg}`")
       } else {
         positional.push(arg)
       }
     }
     i = i + 1
   }
-  let parsed = { ..parsed, positional, }
-  match check_options(parsed) {
-    Ok(_) => Ok(parsed)
-    Err(msg) => Err(msg)
-  }
-}
-
-///|
-/// 每个命令允许的选项。`None` 表示不限（help / 未知命令交给 `dispatch`）。
-fn allowed_options(command : String) -> Array[String]? {
-  match command {
-    "list" | "ls" =>
-      Some([
-        "-n", "--limit", "-f", "--full", "-p", "--pinned", "-q", "--query", "--json",
-      ])
-    "show" =>
-      // show 的 `-f` 决定是否显示密钥原文
-      Some(["-f", "--full"])
-    "copy" | "cp" | "pin" | "unpin" | "rm" | "remove" => Some([])
-    // clear 的 `-f` 表示连固定条目一起删
-    "clear" => Some(["-f", "--full"])
-    "watch" => Some(["-i", "--interval"])
-    "stats" => Some(["--json"])
-    _ => None
-  }
-}
-
-///|
-/// 选项名（`--limit=5` 这种内联写法取等号前的部分）。
-fn option_name(arg : String) -> String {
-  match arg.find("=") {
-    Some(eq) if arg.has_prefix("--") => arg[:eq].to_owned()
-    _ => arg
-  }
-}
-
-///|
-/// 命令行里实际出现过的选项名（到 `--` 为止）。
-fn option_names(argv : Array[String]) -> Array[String] {
-  let names = []
-  for arg in argv {
-    if arg == "--" {
-      break
-    }
-    if arg.length() > 1 && arg.has_prefix("-") {
-      names.push(option_name(arg))
-    }
-  }
-  names
-}
-
-///|
-/// 按命令校验选项：解析是全局的，这里才把不在该命令允许列表里的选项
-/// 拦下来。以前 `mtuck watch -q foo`、`mtuck clear --json` 会被静默忽略，
-/// 看上去像是生效了。
-fn check_options(args : Args) -> Result[Unit, String] {
-  let allowed = match allowed_options(args.command) {
-    Some(list) => list
-    None => return Ok(())
-  }
-  for name in option_names(args.argv) {
-    if !allowed.contains(name) {
-      let usage = if allowed.is_empty() {
-        "不接受选项"
-      } else {
-        "只支持 \{allowed.join(", ")}"
-      }
-      return Err("mtuck: `\{args.command}` \{usage}，收到 `\{name}`")
-    }
-  }
-  Ok(())
+  Ok({ ..parsed, positional, })
 }
 
 ///|
