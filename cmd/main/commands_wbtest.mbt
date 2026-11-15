@@ -273,3 +273,19 @@ async test "list 的行渲染：密钥打码、普通条目截断" {
     assert_true(rendered.contains("pinned note"))
   })
 }
+
+///|
+async test "command_show: 编号越界返回退出码 2，与 pin / rm 一致" {
+  with_tmp_history(async fn(path) {
+    // 下标的有效性取决于加载后的历史，这里直接换一份只有两条的文件
+    let two = @history.History::new()
+    two.push("first", 1_700_000_000_000L) |> ignore
+    two.push("second", 1_700_000_100_000L) |> ignore
+    let dir = path[:path.rev_find("/").unwrap_or(0)].to_owned()
+    assert_true(save_to(two, path, dir))
+    let args = { ..default_args("show"), positional: ["0"], }
+    assert_eq(command_show(args, path~), 0)
+    let missing = { ..default_args("show"), positional: ["5"], }
+    assert_eq(command_show(missing, path~), 2)
+  })
+}

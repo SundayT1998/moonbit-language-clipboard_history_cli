@@ -111,9 +111,19 @@ pub fn History::push(
       return Some(0)
     }
   }
-  let merged = self.entries.search_by(fn(e) {
-    !e.pinned && e.text == norm && e.is_secret == kind.is_secret
-  })
+  // 不能用 `search_by`：它在满载（1000 条）且内容已在表里时返回的是被插入的
+  // 头部下标（`trim` 之后头部已换成新条目），合并分支会拿错对象并多删一条。
+  // 从 1 开始倒着扫：跳过头部，并且命中时删的是更靠后的重复项。
+  let mut merged : Int32? = None
+  let mut i = self.entries.length() - 1
+  while i >= 1 {
+    let e = self.entries[i]
+    if !e.pinned && e.text == norm && e.is_secret == kind.is_secret {
+      merged = Some(i)
+      break
+    }
+    i = i - 1
+  }
   match merged {
     Some(idx) => {
       let old = self.entries[idx]
@@ -172,6 +182,7 @@ fn History::trim(self : History) -> Unit {
 ///
 /// 注意：这里刻意不用 `search_by`，那条路径在满载时会把刚插入的头部
 /// 换掉（在 1000 条满载的边界上实测踩到过）。从尾部倒着找，行为可预测。
+/// `push` 的合并查找同理，也不能用 `search_by`。
 ///
 /// 满上限之后每个新条目都要走一遍这里，所以不超限时直接返回原数组，
 /// 只在**第一次真删**时复制一份：正常情况下都是原地删除。

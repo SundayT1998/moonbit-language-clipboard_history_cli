@@ -330,3 +330,18 @@ test "push 满载时命中已有条目仍回到头部" {
   assert_eq(h.get(0).unwrap().text, "mtuck-test-entry-500")
   assert_eq(h.get(0).unwrap().hits, 2)
 }
+
+///|
+test "push 满载时与表内重复条目合并：不丢条目、不删错对象" {
+  let h = full_history()
+  // 先写一条新内容（满载 + 1 条会被淘汰，长度仍在上限）
+  assert_eq(h.push("mtuck-test-fresh", 500L), Some(0))
+  assert_eq(h.len(), max_entries)
+  // 再复制一次表里的旧内容：应该合并到它自己，而不是把新头部当成合并目标
+  assert_eq(h.push("mtuck-test-entry-500", 1000L), Some(0))
+  assert_eq(h.len(), max_entries)
+  assert_eq(h.get(0).unwrap().text, "mtuck-test-entry-500")
+  assert_eq(h.get(0).unwrap().hits, 2)
+  // 只挪位置，不该凭空删掉一条别的条目
+  assert_true(h.entries.any(fn(e) { e.text == "mtuck-test-fresh" }))
+}

@@ -270,9 +270,13 @@ async fn command_show(args : Args, path~ : String = history_path()) -> Int32 {
     }
     Ok(list) => {
       let history = load_from(path)
+      let mut missing = false
       for idx in list {
         match history.get(idx) {
-          None => eprintln("mtuck: 没有第 \{idx} 条")
+          None => {
+            eprintln("mtuck: 没有第 \{idx} 条")
+            missing = true
+          }
           Some(e) =>
             if e.is_secret && !args.full {
               println(
@@ -284,7 +288,12 @@ async fn command_show(args : Args, path~ : String = history_path()) -> Int32 {
             }
         }
       }
-      0
+      // 与 pin / rm 一致：编号越界属于用法错误，脚本要能感知到
+      if missing {
+        2
+      } else {
+        0
+      }
     }
   }
 }
