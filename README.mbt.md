@@ -83,7 +83,7 @@ mtuck list -q moon   # 按子串搜索
 `<n>` 是最新为 `0` 的编号，也支持 `last`、`1,3,5`、`2-5` 等写法。
 完整选项、环境变量、`--json` 输出格式与退出码见 [docs/commands.md](docs/commands.md)。
 
-更多文档（工作原理与存储格式、开发指南、开机自启）见 [docs/](docs/)。
+更多文档（工作原理与存储格式、开发指南、开机自启）见 [docs/](docs/)；历次问题记录归档在 [docs/issues/](docs/issues/)。
 
 ## 路线图
 
