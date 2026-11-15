@@ -153,16 +153,39 @@ test "push 新条目记录分类结果与时间" {
 }
 
 ///|
-test "push 合并时保留首次出现时间并更新分类" {
+test "push 合并时把 ts 刷新为最近一次复制时间并更新分类" {
   let h = mk()
   h.push("a", 10L) |> ignore
   h.push("password=x", 20L) |> ignore
   h.push("a", 30L) |> ignore
   let e = h.get(0).unwrap()
   assert_eq(e.text, "a")
-  assert_eq(e.ts, 10L)
+  // `list` 的“多久以前”要反映最后一次复制，而不是首次出现
+  assert_eq(e.ts, 30L)
   assert_eq(e.hits, 2)
   assert_eq(e.kind_label, "text")
+}
+
+///|
+test "push 与头部相同时同样刷新 ts" {
+  let h = mk()
+  h.push("same", 10L) |> ignore
+  h.push("same", 40L) |> ignore
+  let e = h.get(0).unwrap()
+  assert_eq(e.ts, 40L)
+  assert_eq(e.hits, 2)
+}
+
+///|
+test "push 合并固定相邻条目不刷新固定条目" {
+  let h = mk()
+  h.push("note", 10L) |> ignore
+  h.toggle_pin(0)
+  h.push("keep", 20L) |> ignore
+  // `keep` 在头部，与 `note` 合并时 `note` 的时间保持不变
+  assert_eq(h.push("note", 50L), Some(0))
+  assert_eq(h.get(0).unwrap().pinned, false)
+  assert_eq(h.get(0).unwrap().ts, 50L)
 }
 
 ///|
