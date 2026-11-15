@@ -113,7 +113,8 @@ fn is_key_separator(c : Char) -> Bool {
   c == ':' ||
   c == '"' ||
   c == '\'' ||
-  c == '\\'
+  c == '\\' ||
+  c == ','
 }
 
 ///|
@@ -123,7 +124,13 @@ fn looks_like_payload(s : Array[Char], at : Int32, min : Int32) -> Bool {
   let mut pos = at
   while pos < s.length() {
     let c = s[pos]
-    if c == '"' || c == '\'' || c == '=' || c == ':' || c == ' ' || c == '\t' {
+    if c == '"' ||
+      c == '\'' ||
+      c == '=' ||
+      c == ':' ||
+      c == ',' ||
+      c == ' ' ||
+      c == '\t' {
       pos = pos + 1
     } else {
       break

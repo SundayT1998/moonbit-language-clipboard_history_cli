@@ -147,6 +147,21 @@ test "classify: 路径里才出现冒号时不算账号密码" {
 }
 
 ///|
+test "classify: 引号 / 逗号包裹的裸密钥" {
+  // JSON、YAML、shell 赋值里密钥常被引号或逗号包着
+  assert_true(
+    classify("{\"api_key\": \"sk-proj-abcdefghijklmnop0123\"}").is_secret,
+  )
+  assert_true(classify("export KEY=sk-proj-abcdefghijklmnop0123").is_secret)
+  assert_true(
+    classify("https://hooks.example.com/x?token=sk-proj-abcdefghijklmnop0123").is_secret,
+  )
+  assert_true(classify("keys: [ghp_abcdefghijklmnopqrstuvwxyz]").is_secret)
+  // 自然语言里的“引号里的普通词”仍然不算
+  assert_false(classify("the \"bearer\" keyword").is_secret)
+}
+
+///|
 test "classify: 裸前缀不再误伤普通文本" {
   // 前缀前面是字母：`zhakia`、`risk-free`、`task-1` 都不是密钥
   assert_eq(classify("https://example.com/akia_page").label, "url")
