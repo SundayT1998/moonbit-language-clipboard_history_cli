@@ -10,10 +10,10 @@
 
 ```console
 $ mtuck list
-  #0  刚刚      ×3  [url]  https://github.com/moonbitlang/moon
-★ #1  1 分钟前  ×1  [text]  cargo test --workspace
-  #2  15 分钟前  ×1  [secret]  post••••••••
-  #3  1 小时前   ×1  [text]  会议纪要：下周一对齐
+  #0  刚刚  ×3  [url]  https://github.com/moonbitlang/moon
+  #1  1 分钟前  ×1  [text]  cargo test --workspace
+★ #2  15 分钟前  ×1  [token]  ghp_••••••••
+  #3  1 小时前  ×1  [text]  会议纪要：下周一对齐
 ```
 
 ## 安装

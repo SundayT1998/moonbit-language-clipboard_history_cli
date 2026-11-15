@@ -64,12 +64,17 @@
 
 ```console
 $ mtuck list --json -n 2
-[{"index":0,"ts":1731600000000,"hits":3,"pinned":false,"kind":"url","secret":false,"text":"https://example.com"},
- {"index":1,"ts":1731599000000,"hits":1,"pinned":true,"kind":"text","secret":false,"text":"npm run build"}]
+[{"index":0,"ts":1731600000000,"hits":3,"pinned":false,"kind":"url","secret":false,"redacted":false,"text":"https://example.com"},{"index":1,"ts":1731599000000,"hits":1,"pinned":true,"kind":"text","secret":false,"redacted":false,"text":"npm run build"}]
 
 $ mtuck stats --json
-{"total":42,"pinned":2,"secret":3,"chars":8123,"bytes":8300,"path":"/home/me/.local/share/mtuck/history.tsv","kinds":{"text":30,"url":9,"secret":3}}
+{"total":42,"pinned":2,"secret":3,"chars":8123,"bytes":8300,"path":"/home/me/.local/share/mtuck/history.tsv","kinds":{"text":30,"url":9,"token":3}}
 ```
+
+`list --json` 是一个**单行**数组（没有换行、没有缩进），每个元素都带 `redacted`：
+密钥类条目在默认输出里被打了码，这个字段为 `true`；配合 `-f` 时输出原文，字段为 `false`。
+`stats --json` 里的 `kinds` 直接按历史文件里记录的标签计数，键名就是 `kind` 的取值
+（`text`、`url`、`dsn`、`jwt`、`secret`、`empty`）。`list` 会先按当前规则重新判定标签，
+`stats` 不会——两者对旧版本写入的条目可能出现不同的 `kind` 统计。
 
 ### 退出码
 
