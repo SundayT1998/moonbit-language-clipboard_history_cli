@@ -45,8 +45,11 @@ test "mask 保留前缀并封顶" {
 ///|
 test "classify: 常见脱敏漏判" {
   // Authorization 头 / bearer
-  assert_true(classify("authorization: bearer abcdefghijklmnop").is_secret)
-  assert_true(classify("Bearer abcdefghijklmnop").is_secret)
+  assert_true(
+    // 令牌前面是 `ghp_`，由裸前缀规则命中（带 `:` 时 `bearer` 关键词不区分大小写命中）
+    classify("authorization: bearer abcdefghijklmnopqrstuvwxyz0123").is_secret,
+  )
+  assert_true(classify("Bearer abcdefghijklmnopqrstuvwxyz0123").is_secret)
   // 裸密钥前缀
   assert_true(classify("sk-ant-abcdefghijklmnopqrstuvwxyz").is_secret)
   assert_true(classify("ghp_abcdefghijklmnopqrstuvwxyz").is_secret)
@@ -122,11 +125,17 @@ test "classify: 多行只在最后一行是敏感赋值时才算密钥" {
 
 ///|
 test "classify: 各种裸密钥前缀" {
-  for p in ["sk-", "gho_", "ghs_", "github_pat_", "xoxb-", "xoxp-"] {
-    assert_true(classify("\{p}abcdefgh").is_secret)
+  for p in ["sk-", "gho_", "ghs_", "github_pat_"] {
+    assert_true(classify("\{p}ABCDEFGHIJKLMNOPQRSTUVWXYZ0123").is_secret)
   }
-  assert_true(classify("prefix AKIAABCDEFGH suffix").is_secret)
-  assert_true(classify("xoxb-1234-5678").is_secret)
+  for p in ["xoxb-", "xoxp-"] {
+    assert_true(classify("\{p}1234-5678-abcd").is_secret)
+  }
+  assert_true(classify("prefix AKIAABCDEFGHIJKLMNOP suffix").is_secret)
+  assert_true(classify("xoxb-1234-5678-abcd").is_secret)
+  // 大小写混排的前缀同样能识别
+  assert_true(classify("Sk-ant-abcdefghijklmnop0123").is_secret)
+  assert_true(classify("AKIAIOSFODNN7EXAMPLE").is_secret)
 }
 
 ///|
@@ -138,15 +147,26 @@ test "classify: 路径里才出现冒号时不算账号密码" {
 }
 
 ///|
-test "classify: 裸前缀的子串误判（当前行为）" {
-  // `akia` 没有词边界，URL 里带这几个字母也会被判成密钥
-  assert_true(classify("https://example.com/akia_page").is_secret)
-  assert_true(classify("https://example.com/zhakia_page").is_secret)
-  // `bearer ` 后面只有空格也算
-  assert_true(classify("word bearer test").is_secret)
-  // 这几个不该误判
-  assert_eq(classify("https://github.com/asia/foo").label, "url")
+test "classify: 裸前缀不再误伤普通文本" {
+  // 前缀前面是字母：`zhakia`、`risk-free`、`task-1` 都不是密钥
+  assert_eq(classify("https://example.com/akia_page").label, "url")
+  assert_false(classify("https://example.com/akia_page").is_secret)
+  assert_false(classify("https://example.com/zhakia_page").is_secret)
   assert_false(classify("https://github.com/asia/foo").is_secret)
+  assert_false(classify("task-1").is_secret)
+  assert_false(classify("risk-free").is_secret)
+  // `bearer ` 后面必须是实打实的令牌
+  assert_false(classify("word bearer test").is_secret)
+  assert_false(classify("bearer").is_secret)
+  // `akia` 后面不足 16 位，或者混进了小写
+  assert_false(classify("AKIAABCDEFGH").is_secret)
+  assert_false(classify("AKIAabcdefghijklmnop").is_secret)
+  // 关键词必须是完整的词：`task=`、`passed=` 不算敏感键
+  assert_false(classify("task=build").is_secret)
+  assert_false(classify("passed=true").is_secret)
+  assert_true(classify("db_password=abc").is_secret)
+  // `sk-` 后面太短
+  assert_false(classify("sk-short").is_secret)
 }
 
 ///|
