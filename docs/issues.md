@@ -1,0 +1,223 @@
+# 项目问题记录
+
+> 记录时间：2026-11-15
+> 基线：`main` 最新提交（包命名统一为 `SundayT1998/mtuck/...` 之后）
+> 方法：通读 `cmd/`、`history/`、`watch/`、`platform/` 源码；`moon check --target native`、
+> `moon fmt --check`、`moon test --target native`（28/28）均通过；用 release 构建构造边界数据实测。
+>
+> 标记「实测」的条目已用构造的 `history.tsv` 或假剪贴板工具复现；标记「静态」的条目来自读代码推断。
+> 前置条件限制：本机无 X server / Wayland，也没有可用的剪贴板后端，
+> 涉及真实剪贴板读写的路径（尤其是第 1 条）只做了静态推断，需要在有剪贴板后端的机器上复核。
+
+## 优先级总览
+
+| # | 问题 | 级别 | 验证方式 |
+|---|---|---|---|
+| 1 | `watch` 单轮无等待点、`poll` 与 `save` 串行，轮询活跃期间可能漏记复制 | 高 | 静态 |
+| 2 | 单条长度上限单位错误（字符数 × 4 当字节），中文可被误拒 | 高 | 静态 + 实测 |
+| 3 | `ts` 语义为“首次出现”，与 README“提到最前”的描述不一致 | 中 | 静态 |
+| 4 | `list` 底部统计用的是全量条数，过滤 / 截断后提示误导 | 中 | 实测 |
+| 5 | `save` 失败时命令仍返回 0，脚本无法感知写入失败 | 中 | 实测 |
+| 6 | 全部 `--json` 条目都被重算为 secret，`akia` 等裸子串误判会整条打码 | 中 | 实测 |
+| 7 | 未知选项只警告不报错，退出码与其他用法错误不一致 | 低 | 实测 |
+| 8 | 选项按命令通用，`watch` 静默接受 `-q`/`-p`/`--json` 等无效选项 | 低 | 静态 |
+| 9 | `stats` 的“总字符”与长度上限的单位口径不统一 | 低 | 静态 |
+| 10 | 文档口径不一致：测试数量、`aki(a)` 前缀、`dsn` 打码描述 | 低 | 实测 |
+| 11 | `docs/issues.md` 被清空后仍留在仓库里 | 低 | 静态 |
+
+建议修复顺序：**1 → 2 → 5 → 6**。1、2 影响核心功能与数据完整性，5、6 影响脚本可用性与可读性。
+
+---
+
+## 高优先级
+
+### 1. `watch` 的单轮没有等待点，轮询正处于活动期时可能漏记复制
+
+位置：[cmd/main/commands.mbt:96-121](../cmd/main/commands.mbt#L96-L121)、[watch/watch.mbt:93-124](../watch/watch.mbt#L93-L124)
+
+`on_change` 回调里：
+
+```moonbit
+async fn(text) {
+  let result = saved.push(text, now_ms())   // 同步
+  ...
+  save(saved)                              // async fn，未 await
+  true
+}
+```
+
+`save` 是 `async fn`，在 MoonBit 里 `async fn` 中的 `async fn()` 调用不写 `await` 是直接执行，`save` 中途的挂起点也不会把控制权交回 `with_task_group` 所在的任务组（组内只有一个 `spawn_bg`，组本身在等这个阻塞调用）。因此 `on_change` 返回后，`watch_loop` 立刻进行下一轮 `poll`，读剪贴板、生成 `Changed`、再 `sleep` 一个间隔，整段是串行走完的。
+
+影响：
+
+- `poll` 一旦检测到变化，主线程从“系统复制”到“进入 `sleep`”之间要等 `on_change` 走完（全量编码 + 写临时文件 + chmod + rename + `fsync`）。这段时间里的第二次复制，在 Linux 上没有变更计数、只能读文本比对，`last_text` 已经被上一次改动更新，只能等到下一次轮询才能看到——如果第三次复制在这之前发生，第二次就丢了；
+- 直接后果是“立刻落盘”的注释因此成立（`save` 是同步执行完的，不是 fire-and-forget），但代价是 `sleep` 之前这段窗口没有并发能力；改成真正异步的 fire-and-forget，又会引入“`copy` 写回剪贴板被 `watch` 当作新复制记录”的竞态（两个进程之间没有锁）。
+
+**修复方向**：把轮询和落盘拆到不同任务：`watch_loop` 只负责 `poll` + `push`，`save` 放到独立任务里按序消费（例如 channel + 单写者），同时用锁文件避免 `copy` 与 `watch` 的写回竞态。
+
+**验证建议**：在有剪贴板后端的机器上，用脚本以 100–200ms 间隔快速连续复制 10 条不同内容，对比 `mtuck list -n 0` 的条目数与内容是否有缺失。
+
+### 2. 单条长度上限的单位与注释不符，中英文混排内容被误拒
+
+位置：[history/store.mbt:22](../history/store.mbt#L22)、[history/store.mbt:100](../history/store.mbt#L100)
+
+```moonbit
+pub let max_entry_bytes : Int32 = 256 * 1024
+
+if norm.is_empty() || norm.length() * 4 > max_bytes {
+  return None
+}
+```
+
+注释写“按 UTF-8 估算”，但 `length()` 统计的是字符数而不是字节数。实测 `stats` 对 41 个中文字符的条目显示“总字符 41”，也就是说：
+
+- 纯 ASCII 文本最多只能存 `256 * 1024 / 4 = 65536` 个字符（64 KiB），实际只有上限的四分之一；
+- 含多字节字符的文本会被提前拒绝：256 个中文字符（真实 UTF-8 约 768 字节）就被判为超长；
+- 反过来，用 4 字节最坏估计对 3 字节的 CJK 和 1 字节的 ASCII 都不准确。
+
+**修复方向**：用真实的 UTF-8 字节数判断（例如遍历时累加每个码点的编码长度），或者把配置项改名为 `max_entry_chars` 并明确单位。
+
+**实测方法**：
+
+```bash
+export MTUCK_DIR=/tmp/mtuck_repro && mkdir -p "$MTUCK_DIR"
+# 41 个中文字符（UTF-8 约 123 字节），stats 显示「总字符 41」
+python3 -c "open('$MTUCK_DIR/history.tsv','w').write('mtuck-history\t1\n1000\t1\t0\ttext\t0\t' + '字'*40 + '\\\\n\n')"
+mtuck stats
+```
+
+> 注：本机没有剪贴板后端，`watch` 的真实写入路径无法直接复现；上述单位问题由读代码确认（`length()` 是字符数），`stats` 的字符统计已实测。
+
+---
+
+## 中优先级
+
+### 3. `ts` 保存的是“首次出现时间”，与文档描述不一致
+
+位置：[history/store.mbt:109-136](../history/store.mbt#L109-L136)、[README.mbt.md:209](../README.mbt.md#L209)、[history/codec.mbt:58-76](../history/codec.mbt#L58-L76)
+
+`suggest` 合并已有条目时构造的 `fresh` 保留旧的 `ts`：
+
+```moonbit
+let fresh : Entry = {
+  text: old.text,
+  ts: old.ts,
+  hits: old.hits + 1,
+  ...
+}
+```
+
+而 README 写的是“新内容与已有未固定条目相同时合并为一条，`hits` 加一，并提到最前”，读者容易理解为“时间也是最新的”。合并后 `list` 显示的是首次复制的时间，可能显示为几分钟前甚至几天前，而实际最近一次复制就在刚才。TSV 列名 `ts` 也没有说明这一点。
+
+**修复方向**：确认产品语义后二选一——要么合并时把 `ts` 更新为 `now_ms`，要么把 README 改成“显示首次出现时间”，并考虑在 TSV 中增加 `last_ts` 列（需要做一次格式版本迁移）。
+
+### 4. `list` 底部统计用全量条数，过滤 / 截断后提示误导
+
+位置：[cmd/main/commands.mbt:174-179](../cmd/main/commands.mbt#L174-L179)
+
+```moonbit
+if args.limit > 0 && history.len() > indexes.length() {
+  println("（共 \{history.len()} 条，只显示前 \{indexes.length()} 条；-n 0 看全部）")
+}
+```
+
+实测（5 条历史，`mtuck list -n 2 -q entry`）：
+
+```console
+  #0  …  entry 1
+  #1  …  entry 2
+（共 5 条，只显示前 2 条；-n 0 看全部）
+```
+
+这里“共 5 条”是过滤前的总数，“只显示前 2 条”是 `-n` 截断后的条数，读者无法知道 `-q` 或 `-p` 命中的其实有 5 条（或 1 条）。另外，`-p` 与 `-q` 同时使用时，没有匹配时会笼统输出“没有匹配的条目”，无法区分“没有固定条目”和“固定的里面没有匹配的”。
+
+**修复方向**：分别统计“过滤命中数 `matched`”和“实际展示数 `shown`”，提示写成 `（匹配 N 条，显示前 K 条；-n 0 看全部）`，并保留过滤前的总数作为可选信息。
+
+### 5. `save` 失败时命令仍以退出码 0 结束
+
+位置：[cmd/main/store_io.mbt:38-70](../cmd/main/store_io.mbt#L38-L70)、[cmd/main/commands.mbt:340-370](../cmd/main/commands.mbt#L340-L370)
+
+`save` 内部用 `catch` 打印错误后 `return`，调用方（`with_history`、`command_watch`、`run_watch` 的 `save`）都不检查结果。实测：
+
+```console
+$ MTUCK_DIR=/proc/nope mtuck clear
+mtuck: 写历史失败: @fs.open(): "/proc/nope/history.tsv.tmp": No such file or directory
+已清空 0 条
+$ echo $?
+0
+```
+
+`MTUCK_DIR` 指向只读目录、磁盘满、rename 失败等场景都一样：用户看到错误日志，但脚本 / CI 拿到的是 0。`pin`、`rm`、`clear`、`watch` 的写入失败都会静默成功。
+
+**修复方向**：`save` 返回 `Result[Unit, String]`（或 `Bool`），`with_history` 透传，命令层统一转成退出码 1。
+
+### 6. 所有 `--json` 条目都会用当前规则重算，裸子串误判会整条打码
+
+位置：[cmd/main/commands.mbt:143-152](../cmd/main/commands.mbt#L143-L152)、[history/kind.mbt:63-67](../history/kind.mbt#L63-L67)
+
+`command_list` 每次加载后都对 `!e.is_secret` 的条目重新 `classify`，这是为了避免旧数据漏判。但 `kind.mbt` 的 `secret_markers` 是任意位置的小写子串匹配：
+
+```moonbit
+"bearer ", "sk-", "ghp_", ..., "akia", "xoxb-", "xoxp-",
+```
+
+`akia` 没有词边界，实测以下内容均被整条打码：
+
+```console
+$ mtuck list --json
+[{"index":0,...,"kind":"secret","secret":true,"text":"http••••••••"},   ← https://example.com/akia_page
+ {"index":1,...,"kind":"secret","secret":true,"text":"http••••••••"},   ← https://example.com/zhakia_page
+ {"index":2,...,"kind":"url","secret":false,"text":"https://github.com/asia/foo"},
+ {"index":3,...,"kind":"secret","secret":true,"text":"word••••••••"}]   ← word bearer test
+```
+
+其中 0、1 本该是普通 URL；`bearer` 后面只跟一个空格也会命中。反过来，这个机制的方向是对的（旧数据必须重算），但“裸子串 + 无边界”的判定放大了误报，并且因为重算发生在 `list` 而不是写入时，误判结果每次 `list` 都会重新出现，用户也没法通过修改历史文件来摆脱。
+
+**修复方向**：
+
+- 裸前缀加词边界或格式校验（`AKIA` 后必须是 16 个大写字母 / 数字，`sk-` 后至少 N 个密钥字符，`bearer ` 后必须是较长令牌）；
+- 对“重算后标记为 secret”的条目，区分“写入时判定”与“加载时重算”，至少在 `--json` 中保留原始 `kind` 字段，便于脚本区分；
+- 补测试覆盖 `akia`、`zhakia`、`Asia` 之类的反例。
+
+---
+
+## 低优先级 / 体验
+
+### 7. 未知选项只警告不报错，退出码不一致
+
+位置：[cmd/main/args.mbt:84-86](../cmd/main/args.mbt#L84-L86)
+
+```moonbit
+} else if arg.has_prefix("-") && arg != "-" {
+  eprintln("忽略未知选项 `\{arg}`")
+}
+```
+
+实测 `mtuck list --foo` 打印警告后照常执行、退出码 0；而同文件里 `-n abc`、缺值等错误返回退出码 2。脚本里拼错选项不会被发现。建议统一为退出码 2（可加 `--` 作为“后面全是位置参数”的转义）。
+
+### 8. 选项按命令通用，无效选项被静默接受
+
+`Args` 是所有子命令共用的结构，`parse_args` 不做命令级校验。例如 `mtuck watch -q foo`、`mtuck list -i 100`、`mtuck clear --json` 都不会报错，选项被静默忽略。建议在命令分发时按命令校验允许的选项集合。
+
+### 9. `stats` 的“总字符”与长度上限单位口径不统一
+
+[cmd/main/commands.mbt:347](../cmd/main/commands.mbt#L347) 的 `chars` 统计的是字符数（与上面的实际需求一致），但第 2 条中的上限判断把“字符数 × 4”当作字节。同一个模型里同时存在“字符”和“字节”两套口径，且只有一处正确，建议统一成一种并在字段名上体现（`chars` / `bytes`）。
+
+### 10. 文档口径不一致
+
+- [README.mbt.md:380](../README.mbt.md#L380) 写“跑测试（当前 18 个）”，实际 `moon test --target native` 输出 `passed: 28`；
+- 第 2 条的长度上限、第 3 条的 `ts` 语义，README 的“历史模型”一节需要同步；
+- “内容类型与保密判定”表格里 `dsn` 标为“否（默认不打码）”，与实际一致，但建议补一句“`scheme://user:pass@host` 会归到 secret”，避免读者误以为所有连接串都安全。
+
+### 11. `docs/issues.md` 被清空后仍留在仓库里
+
+文件现在是 0 字节，属于上一轮问题清理的遗留。建议要么删除文件，要么保留归档目录（如 `docs/issues/2026-11-15.md`）并在 README 或 CONTRIBUTING 中说明记录方式的变更。
+
+---
+
+## 建议补充的测试
+
+- `history/store.mbt`：多字节文本的长度上限（第 2 条）、合并后 `ts` 的语义（第 3 条）；
+- `history/kind.mbt`：裸前缀误判反例 `akia` / `zhakia` / `Asia` / 单独一个 `bearer`（第 6 条）；
+- `cmd/main`：`save` 失败时的退出码（第 5 条，需要注入一个不可写目录）、`list -n k -q` 的底部提示（第 4 条）、未知选项的退出码（第 7 条）；
+- `watch`：用假读取器构造“回调处理期间剪贴板再次变化”的序列，断言不会漏记（第 1 条）。现有 `watch_wbtest.mbt` 只覆盖了单轮 `poll`，没有覆盖连续变化的场景。
