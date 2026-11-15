@@ -141,36 +141,11 @@ async fn run_watch(
   watcher : @watch.Watcher,
   interval : Int32,
 ) -> Bool {
-  // 轮询和落盘拆成两个任务：消费者按序把 `saved` 写进磁盘，轮询只负责
-  // `poll` + `push`，写完一条再读剪贴板。回调里直接 `save` 的话，一次
-  // 全量编码 + 写临时文件 + fsync 期间读不到剪贴板，连续复制的中间内容会丢。
-  //
-  // 队列满了（`Blocking`）就让轮询等一等：改写内存之后磁盘上还是旧内容，
-  // 这时候读到的“新变化”落盘时会把内存里的旧条目覆盖掉。
-  // 退出时轮询任务关掉队列，消费者把剩下的都写完才返回。
-  let queue : @aqueue.Queue[@history.History] = @aqueue.Queue::Queue(
-    kind=Blocking(4),
-  )
+  // 回调跑在 `watch_loop` 的子任务里，拿不到父任务的执行上下文；
+  // 放进任务组里跑，`save` 才是真正被执行（而不是创建一个被丢弃的 future）。
+  // 轮询期间任何一次落盘失败都记下来，退出时让 `command_watch` 返回非零
   let mut save_failed = false
   @async.with_task_group(fn(group) {
-    group.spawn_bg(async fn() {
-      // 队列被关闭之后 `try_get` 会抛出 `QueueAlreadyClosed`：只有它才表示“写完了”
-      while true {
-        let done = Ref(false)
-        let entry = queue.try_get() catch {
-          _ => {
-            done.val = true
-            None
-          }
-        }
-        if done.val {
-          break
-        }
-        if entry is Some(entry) && !save(entry) {
-          save_failed = true
-        }
-      }
-    })
     group.spawn_bg(async fn() {
       @watch.watch_loop(
         watcher,
@@ -188,7 +163,10 @@ async fn run_watch(
               } else {
                 println("+ [\{kind.label}] \{preview}")
               }
-              queue.put(saved)
+              // 立刻落盘：Ctrl-C 或崩溃都不会丢掉刚复制的东西
+              if !save(saved) {
+                save_failed = true
+              }
             }
             None => eprintln("mtuck: 内容过长或为空，已忽略")
           }
@@ -196,8 +174,6 @@ async fn run_watch(
         },
         on_error=fn(msg) { eprintln("mtuck: 读剪贴板失败: \{msg}") },
       )
-      // 正常退出或 Ctrl-C 只会取消轮询任务；消费者要拿到“没有更多了”才能结束
-      queue.close()
     })
   })
   save_failed

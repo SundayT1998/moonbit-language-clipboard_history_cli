@@ -1,7 +1,6 @@
 // `hk` 命令行入口：解析参数、拼装 history/watch，并负责所有 I/O。
 import {
   "moonbitlang/core/async",
-  "moonbitlang/core/async/aqueue",
   "moonbitlang/core/async/fs",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/env",
