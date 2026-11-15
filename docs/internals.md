@@ -15,15 +15,12 @@
 - **读写剪贴板**：通过 [`moonbit-community/proton_clipboard`](https://mooncakes.io/docs/moonbit-community/proton_clipboard)，
   Windows / macOS 原生调用，Linux 调用 `wl-paste`/`xclip`/`xsel`。
 - **持久化**：每次有变化立刻"写临时文件 + rename"落盘，Ctrl-C、崩溃都不会留下半个文件。
-  轮询和落盘是两个任务：`watch_loop` 读剪贴板、改写内存，消费者任务按序写盘。
-  落盘期间轮询不会被卡住，连续复制的中间内容不会被漏掉；队列（`Blocking(4)`）
-  满时轮询会等一等，保证退出前最后一次修改一定写盘。
 
 ## 历史模型
 
 - 头部永远是最新一条，编号即位置。
 - **去重**：新内容与已有未固定条目相同时合并为一条，`hits` 加一，并提到最前；
-  合并时 `ts` 刷新为本次复制时间（`list` 里的“多久以前”指最近一次复制）。
+  合并后的 `ts` 刷新为本次复制时间（`list` 里的“多久以前”指最近一次复制）。
 - **上限**：默认 1000 条（`history/store.mbt` 中的 `max_entries`），超出后从最旧的
   **未固定**条目开始丢。
 - **固定**：`pin` 过的条目永不淘汰、也不参与合并——适合放常用命令、模板。
