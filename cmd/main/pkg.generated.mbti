@@ -30,6 +30,7 @@ pub(all) struct Args {
   query : String?
   json : Bool
   interval : Int32?
+  argv : Array[String]
 }
 
 // Type aliases

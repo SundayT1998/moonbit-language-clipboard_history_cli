@@ -20,7 +20,8 @@ test "parse_args 拒绝非法或缺失的取值" {
 
 ///|
 test "watch 间隔用独立选项，不再与 -n 冲突" {
-  assert_true(parse_args(["watch", "-n", "5"]) is Ok(a) && a.interval is None)
+  // `-n` 不属于 watch，按命令校验拒绝，而不是静默吞掉
+  assert_true(parse_args(["watch", "-n", "5"]) is Err(_))
   assert_true(
     parse_args(["watch", "--interval", "100"]) is Ok(a) &&
     a.interval is Some(100),
@@ -85,10 +86,37 @@ test "parse_args 把 -- 之后的内容都当作位置参数" {
 }
 
 ///|
-test "parse_args 忽略未知选项但保留单个 -" {
-  let a = ok(["list", "--wat", "-"])
+test "parse_args 拒绝未知选项，单个 - 仍当位置参数" {
+  // 拼错的选项按用法错误处理，退出码与其他用法错误一致（2）
+  assert_true(
+    parse_args(["list", "--wat"]) is Err(msg) && msg.contains("--wat"),
+  )
+  assert_true(parse_args(["list", "-n5"]) is Err(_))
+  let a = ok(["list", "-"])
   // `-` 习惯上表示 stdin，当位置参数处理
   assert_eq(a.positional, ["-"])
+}
+
+///|
+test "parse_args 按命令校验选项" {
+  // watch 只认 -i / --interval
+  assert_true(parse_args(["watch", "-q", "foo"]) is Err(_))
+  assert_true(parse_args(["watch", "--json"]) is Err(_))
+  assert_true(ok(["watch", "-i", "100"]).interval is Some(100))
+  // clear 只认 -f
+  assert_true(parse_args(["clear", "--json"]) is Err(_))
+  assert_true(ok(["clear", "-f"]).full)
+  // list 的组合都认得
+  assert_true(
+    parse_args(["list", "-n", "5", "-f", "-p", "-q", "x", "--json"]) is Ok(_),
+  )
+  // stats 只认 --json
+  assert_true(parse_args(["stats", "-n", "3"]) is Err(_))
+  // 不需要选项的命令
+  assert_true(parse_args(["copy", "-f", "0"]) is Err(_))
+  assert_true(parse_args(["rm", "0", "1-3"]) is Ok(_))
+  // `--` 之后的 -n 是位置参数，不算选项
+  assert_true(parse_args(["rm", "--", "-n"]) is Ok(_))
 }
 
 ///|
@@ -109,8 +137,6 @@ test "parse_args 的间隔上限" {
 
 ///|
 test "parse_args 不支持短选项与取值粘连" {
-  // `-n5` 整体被当作未知选项忽略，不会误读成 `-n 5`
-  let a = ok(["list", "-n5"])
-  assert_eq(a.limit, 20)
-  assert_true(a.positional.is_empty())
+  // `-n5` 整体是未知选项，直接报错，不会误读成 `-n 5`
+  assert_true(parse_args(["list", "-n5"]) is Err(_))
 }
