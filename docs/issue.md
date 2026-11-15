@@ -311,3 +311,53 @@ $ echo $?
 
 复查时怀疑 `--json` 默认只输出 20 条是漏改，实测确认 `-n` 对文本和 JSON 一致生效，
 `-n 0` 输出全部，与 [docs/commands.md](commands.md) 的描述相符。仅此记录，无需处理。
+
+---
+
+## 第三轮：按 OSC 2026 验收口径复查（2026-11-15）
+
+> 方法：按 MoonBit 国产基础软件开源大赛章程的验收要求逐项核对，`moon check --deny-warn`、
+> `moon fmt --check`、`moon test --deny-warn`（128/128）在干净 clone 上均通过，
+> release 构建的二进制实际跑过 `version` / `list` / `stats` / 未知命令。
+> 表中「已修复」为本轮在本仓库直接改掉的问题。
+
+| # | 问题 | 级别 | 状态 | 验证方式 |
+|---|---|---|---|---|
+| 17 | README 指向不存在的 `docs/issues/` 目录 | 低 | ✅ 已修复 | 静态 |
+| 18 | `docs/internals.md` 存储格式一节仍写 `ts` 是“最近一次复制”，与去重语义矛盾（第 12 条同类问题） | 低 | ✅ 已修复 | 静态 |
+| 19 | README 与 `docs/commands.md` 称 `stats` 输出“类型分布”，实际没有该字段 | 低 | ✅ 已修复 | 实测 |
+| 20 | 缺少贡献指南，PR 流程与提交前自查无文档承载（章程要求的公开、可追踪工程记录） | 低 | ✅ 已修复 | 静态 |
+
+### 17. README 指向不存在的目录
+
+`README.mbt.md` 原文写“历次问题记录归档在 [docs/issues/](docs/issues/)”，但 `docs/` 下只有
+`issue.md`，没有 `issues/` 目录。读者点进去是 404。已改为指向实际文件 `docs/issue.md`。
+
+### 18. 存储格式一节与去重语义冲突
+
+第 12 条修过“历史模型”一节的 `ts` 语义，但“存储格式”一节还写着
+“`ts` 是最近一次复制的毫秒时间戳”，而 `push` 合并时保留旧 `ts`。两处口径已经统一为
+**首次**复制时间，并在括号里点明去重不改 `ts`。
+
+### 19. `stats` 并不输出类型分布
+
+`mtuck stats` 实际输出：条目 / 上限、已固定、疑似密钥、总字符、总字节、存储路径。
+README 和 `docs/commands.md` 的命令表都多写了一个“类型分布”，已删掉该措辞，
+避免用户按文档去找不存在的输出。
+
+### 20. 缺少贡献指南
+
+仓库有 CI、hook 和开发指南，但没有一处说明外部贡献者该怎么提 PR、改完要跑什么。
+已新增 `CONTRIBUTING.md`：环境准备、`moon check` / `moon fmt --check` / `moon test` /
+`moon info` 自查、hook 启用方式、PR 约定、CNB 与 GitHub 两个远程的关系、许可证声明。
+
+### 未在本地解决、需要确认的项
+
+- **mooncakes.io 注册名**：`moon.mod` 的包命名空间是 `SundayT1998/mtuck`，mooncakes 上
+  确实存在 `SundayT1998/mtuck@0.1.0`（`https://mooncakes.io/api/v0/user/SundayT1998` 可查），
+  但 `SundayT1998` 与仓库归属（CNB `Tangbuting`、GitHub 同名组织外的个人号）不一致，
+  需要参赛者自己确认这是本人的 mooncakes 账号；
+- **Gitlink 同步**：章程要求 GitHub 与 Gitlink 双仓库。`gitlink.org.cn` 上
+  `SundayT1998/moonbit-language-clipboard_history_cli` 目前 404，属于提交材料问题，不是代码问题；
+- **`moon.mod` 与 README 的仓库地址**：两处都写 GitHub 镜像地址，CNB 仓库地址没有文档化，
+  本轮只在 `CONTRIBUTING.md` 里列了对照表，是否把 `repository` 改指向主仓库由参赛者决定。

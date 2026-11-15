@@ -12,7 +12,7 @@
 | `mtuck unpin <n>` | | 取消固定 |
 | `mtuck rm <n>` | `remove` | 删除条目 |
 | `mtuck clear` | | 清空历史（默认保留固定条目） |
-| `mtuck stats` | | 查看条目数、固定数、疑似密钥数、总字符 / 总字节、类型分布 |
+| `mtuck stats` | | 查看条目数、固定数、疑似密钥数、总字符 / 总字节 |
 | `mtuck help` | `-h` / `--help` | 帮助 |
 | `mtuck version` | `--version` | 版本号 |
 
