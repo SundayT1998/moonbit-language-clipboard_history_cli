@@ -48,7 +48,10 @@ pub async fn load() -> @history.History {
 
 ///|
 /// 写历史。先写 `.tmp` 再 rename，Ctrl-C 打断也不会留下半个文件。
-pub async fn save(history : @history.History) -> Unit {
+///
+/// 失败时错误已经打到 stderr，返回 `false` 让命令层把退出码改成 1：
+/// 脚本 / CI 必须能感知到“历史没写进去”。
+pub async fn save(history : @history.History) -> Bool {
   save_to(history, history_path(), data_dir())
 }
 
@@ -56,12 +59,12 @@ pub async fn save(history : @history.History) -> Unit {
 /// 把历史写进给定的 `path`（目录 `dir` 会被创建并收紧到 0700）。
 ///
 /// 路径显式传进来而不是内部读环境变量，测试才能在不改进程环境的前提下
-/// 把文件写进临时目录。
+/// 把文件写进临时目录。成功返回 `true`。
 async fn save_to(
   history : @history.History,
   path : String,
   dir : String,
-) -> Unit {
+) -> Bool {
   let tmp = "\{path}.tmp"
   // 历史文件里有密码和 token 原文：目录 0700、文件 0600，只给当前用户读。
   @fs.mkdir(dir, permission=0o700, recursive=true, allow_exist=true) catch {
@@ -79,7 +82,7 @@ async fn save_to(
   ) catch {
     e => {
       eprintln("mtuck: 写历史失败: \{e}")
-      return
+      return false
     }
   }
   // `permission` 只对新建文件生效，tmp 可能来自更早的版本；rename 之前再收一次
@@ -87,8 +90,12 @@ async fn save_to(
     _ => ()
   }
   @fs.rename(tmp, path, replace=true) catch {
-    e => eprintln("mtuck: 保存历史失败: \{e}")
+    e => {
+      eprintln("mtuck: 保存历史失败: \{e}")
+      return false
+    }
   }
+  true
 }
 
 ///|
@@ -103,9 +110,15 @@ async fn load_from(path : String) -> @history.History {
 }
 
 ///|
-/// 读-改-写三步的快捷封装。
-pub async fn with_history(action : async (@history.History) -> Unit) -> Unit {
+/// 读-改-写三步的快捷封装。写失败返回 `Err(message)`。
+pub async fn with_history(
+  action : async (@history.History) -> Unit,
+) -> Result[Unit, String] {
   let history = load()
   action(history)
-  save(history)
+  if save(history) {
+    Ok(())
+  } else {
+    Err("历史没有写入磁盘")
+  }
 }

@@ -14,9 +14,9 @@ pub fn now_ms() -> Int64
 
 pub fn resolve_indexes(Args) -> Result[Array[Int32], String]
 
-pub async fn save(@history.History) -> Unit
+pub async fn save(@history.History) -> Bool
 
-pub async fn with_history(async (@history.History) -> Unit) -> Unit
+pub async fn with_history(async (@history.History) -> Unit) -> Result[Unit, String]
 
 // Errors
 

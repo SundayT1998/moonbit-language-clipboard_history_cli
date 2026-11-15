@@ -62,6 +62,54 @@ test "select: 过滤与截断组合，先筛后截" {
 }
 
 ///|
+test "matched: 只过滤不截断" {
+  let h = sample_history()
+  let args = { ..default_args("list"), query: Some("e"), limit: 1, }
+  // 四条里有三条含 "e"（example / password / pinned），limit 不影响 matched
+  assert_eq(matched(h, args).length(), 3)
+  assert_eq(select(h, args), [0])
+  let pinned = { ..default_args("list"), pinned_only: true, }
+  assert_eq(matched(h, pinned), [0])
+}
+
+///|
+test "list_footer: 区分匹配数与展示数" {
+  // 没有截断：不提示
+  assert_true(list_footer(5, 5, 5) is None)
+  assert_true(list_footer(5, 2, 2) is None)
+  // 没过滤、被 -n 截断：沿用“共 N 条”
+  assert_eq(
+    list_footer(5, 5, 2),
+    Some("（共 5 条，只显示前 2 条；-n 0 看全部）"),
+  )
+  // 过滤命中 3 条、展示 2 条：报匹配数，而不是全量 5 条
+  assert_eq(
+    list_footer(5, 3, 2),
+    Some("（匹配 3 条，只显示前 2 条；-n 0 看全部）"),
+  )
+}
+
+///|
+test "empty_list_hint: 区分空历史、无匹配与无固定条目" {
+  assert_eq(
+    empty_list_hint(0, false, None),
+    "历史为空。先跑 `mtuck watch` 开始记录。",
+  )
+  assert_eq(
+    empty_list_hint(5, false, Some("nope")),
+    "没有匹配“nope”的条目（共 5 条历史）。",
+  )
+  assert_eq(
+    empty_list_hint(5, true, None),
+    "没有固定条目（共 5 条历史）。",
+  )
+  assert_eq(
+    empty_list_hint(5, true, Some("nope")),
+    "没有匹配“nope”的固定条目（共 5 条历史）。",
+  )
+}
+
+///|
 test "select: 没有匹配时返回空" {
   let h = sample_history()
   let args = { ..default_args("list"), query: Some("nope"), }
@@ -119,7 +167,7 @@ async fn with_history_at(
   let history = load_from(path)
   action(history)
   let dir = path[:path.rev_find("/").unwrap_or(0)].to_owned()
-  save_to(history, path, dir)
+  assert_true(save_to(history, path, dir))
 }
 
 ///|
@@ -127,7 +175,7 @@ async fn with_tmp_history(f : async (String) -> Unit) -> Unit {
   let dir = @fs.tmpdir(prefix="mtuck-test-") catch { e => abort(e.to_string()) }
   @fs.mkdir(dir, recursive=true, allow_exist=true)
   let path = "\{dir}/history.tsv"
-  save_to(sample_history(), path, dir)
+  assert_true(save_to(sample_history(), path, dir))
   f(path)
   @fs.rmdir(dir, recursive=true, allow_missing=true) catch {
     _ => ()
