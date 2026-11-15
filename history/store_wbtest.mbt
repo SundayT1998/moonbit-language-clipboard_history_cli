@@ -345,3 +345,45 @@ test "push 满载时与表内重复条目合并：不丢条目、不删错对象
   // 只挪位置，不该凭空删掉一条别的条目
   assert_true(h.entries.any(fn(e) { e.text == "mtuck-test-fresh" }))
 }
+
+///|
+test "reclassify: 旧条目按当前规则重新打上密钥标记" {
+  let h = History::new()
+  // 直接塞一条“当时没识别成密钥”的条目
+  h.entries.push({
+    text: "sk-ant-abcdefghijklmnop",
+    ts: 1L,
+    hits: 1,
+    pinned: false,
+    kind_label: "text",
+    is_secret: false,
+  })
+  h.entries.push({
+    text: "https://example.com",
+    ts: 2L,
+    hits: 1,
+    pinned: false,
+    kind_label: "old-label",
+    is_secret: false,
+  })
+  h.reclassify()
+  assert_true(h.get(0).unwrap().is_secret)
+  assert_eq(h.get(0).unwrap().kind_label, "secret")
+  assert_eq(h.get(1).unwrap().kind_label, "url")
+}
+
+///|
+test "reclassify: 不覆盖已经标记为密钥的条目" {
+  let h = History::new()
+  h.entries.push({
+    text: "plain text now",
+    ts: 1L,
+    hits: 1,
+    pinned: false,
+    kind_label: "secret",
+    is_secret: true,
+  })
+  h.reclassify()
+  assert_true(h.get(0).unwrap().is_secret)
+  assert_eq(h.get(0).unwrap().kind_label, "secret")
+}

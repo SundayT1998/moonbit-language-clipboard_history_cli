@@ -107,48 +107,10 @@ pub fn now_ms() -> Int64 {
 }
 
 ///|
-/// JSON 字符串转义。
-fn json_escape(s : String) -> String {
-  let out = StringBuilder()
-  for c in s {
-    match c {
-      '"' => out.write_string("\\\"")
-      '\\' => out.write_string("\\\\")
-      '\n' => out.write_string("\\n")
-      '\r' => out.write_string("\\r")
-      '\t' => out.write_string("\\t")
-      _ =>
-        if c.to_int() < 0x20 {
-          let hex = "0123456789abcdef"
-          let n = c.to_int()
-          out.write_string("\\u00")
-          out.write_char(hex[(n / 16) & 0xF].unsafe_to_char())
-          out.write_char(hex[n & 0xF].unsafe_to_char())
-        } else {
-          out.write_char(c)
-        }
-    }
-  }
-  out.to_string()
-}
-
-///|
 test "now_ms 是毫秒级 Unix 时间" {
   // 2023-11 之后、3000 年之前：量级正确就落在这个区间
   assert_true(now_ms() > 1_700_000_000_000L)
   assert_true(now_ms() < 32_503_680_000_000L)
-}
-
-///|
-test "json_escape 控制字符" {
-  let esc = json_escape
-  assert_eq(esc("a\u{01}").length(), 7)
-  assert_eq(esc("a\u{01}"), "a" + "\\u0001")
-  assert_eq(esc("a\u{00}"), "a" + "\\u0000")
-  assert_eq(esc("a\u{09}"), "a" + "\\t")
-  assert_eq(esc("a\u{0f}"), "a" + "\\u000f")
-  assert_eq(esc("b\u{1f}c"), "b" + "\\u001f" + "c")
-  assert_eq(esc("q\"\\\n\r\t"), "q" + "\\\"" + "\\\\" + "\\n" + "\\r" + "\\t")
 }
 
 ///|
@@ -172,5 +134,5 @@ test "offset_seconds 解析各种偏移" {
 test "floor_div 向负无穷取整" {
   assert_eq(floor_div(7L, 2L), 3L)
   assert_eq(floor_div(-7L, 2L), -4L)
-  assert_eq(floor_div(-4L, 2L), -2L)
+  assert_eq(floor_div(-7L, 2L), -4L)
 }

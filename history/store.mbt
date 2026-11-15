@@ -247,3 +247,21 @@ pub fn History::search(self : History, query : String) -> Array[Int32] {
   }
   found
 }
+
+///|
+/// 按当前规则重新判定未标记为密钥的条目。
+///
+/// 旧版本写入的条目没做充分识别，读盘后重判一遍，避免早已落盘的密钥继续
+/// 明文显示；已经标成密钥的条目保持原样（不因为规则变宽松而泄露）。
+pub fn History::reclassify(self : History) -> Unit {
+  for i, e in self.entries {
+    if !e.is_secret {
+      let kind = classify(e.text)
+      self.entries[i] = {
+        ..e,
+        kind_label: kind.label,
+        is_secret: kind.is_secret,
+      }
+    }
+  }
+}
