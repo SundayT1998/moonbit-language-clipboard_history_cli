@@ -4,7 +4,7 @@
 
 ```bash
 moon check --target native   # 类型检查
-moon test --target native    # 跑测试（当前 115 个）
+moon test --target native    # 跑测试（最后一行的 Total tests 是当前数量）
 moon fmt                     # 格式化
 moon info                    # 更新 .mbti 接口文件，检查对外 API 是否变化
 ```

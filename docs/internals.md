@@ -33,11 +33,14 @@
 | 类型 | 判定规则 | 默认是否打码 |
 | --- | --- | --- |
 | `url` | `http(s)://`、`ftp://`、`file://`、`mailto:` 等 | 否 |
-| `dsn` | 其他 `scheme://…` 形式，如 `postgres://host/db` | 否 |
+| `dsn` | 其他 `scheme://…` 形式，如 `postgres://host/db`（带 `user:pass@` 的归到 `secret`） | 否 |
 | `jwt` | `eyJ…` 开头且含三个 `.` 段 | 是 |
 | `secret` | 私钥块；`password=`/`api_key=`/`token=` 等赋值；`authorization` / `bearer` 头；`sk-`/`ghp_`/`AKIA` 等裸密钥前缀；任意 `scheme://user:pass@host` | 是 |
 | `text` | 其他 | 否 |
 | `empty` | 空内容 | 否 |
+
+`scheme://user:pass@host` 这类带账号密码的连接串不算 `dsn`，一律归到 `secret` 并打码；
+只是“非 http 的 scheme”并不代表安全，凭据写在查询参数里（`?token=`）同样会命中。
 
 打码规则：保留前 4 个字符，其余替换为 `•`（最多 8 个）。
 `show <n> -f` 或 `list -f` 才输出原文。
