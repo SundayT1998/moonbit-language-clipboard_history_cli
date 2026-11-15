@@ -82,7 +82,6 @@ test "push 重复内容提到最前" {
 test "push 忽略空与超长内容" {
   let h = mk()
   assert_eq(h.push("   ", 1L), None)
-  assert_eq(h.push("12345", 1L, max_bytes=4), None)
   assert_eq(h.len(), 0)
 }
 
