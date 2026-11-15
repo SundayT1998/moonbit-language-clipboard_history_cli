@@ -47,17 +47,26 @@ async fn command_copy(
 }
 
 ///|
-async fn command_watch(args : Args) -> Int32 {
+/// 读系统剪贴板。`command_watch` 的默认事件源。
+async fn read_clipboard() -> Result[String?, String] {
+  @clip.read_text()
+}
+
+///|
+async fn command_watch(
+  args : Args,
+  read~ : async () -> Result[String?, String] = read_clipboard,
+) -> Int32 {
   let interval = match args.interval {
     Some(ms) => ms
     None => 400
   }
   let history = load()
-  let initial : String? = match @clip.read_text() {
+  let initial : String? = match read() {
     Ok(Some(text)) => Some(text)
     _ => None
   }
-  let watcher = @watch.Watcher::new(async fn() { @clip.read_text() }, initial~)
+  let watcher = @watch.Watcher::new(read, initial~)
   println(
     "监听剪贴板中（每 \{interval}ms 检查一次，Ctrl-C 退出）",
   )

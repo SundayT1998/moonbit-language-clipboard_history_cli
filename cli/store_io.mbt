@@ -42,7 +42,7 @@ fn history_path() -> String {
 
 ///|
 /// 读历史；文件还不存在（首次运行）就返回空历史。
-pub async fn load() -> @history.History {
+async fn load() -> @history.History {
   load_from(history_path())
 }
 
@@ -51,7 +51,7 @@ pub async fn load() -> @history.History {
 ///
 /// 失败时错误已经打到 stderr，返回 `false` 让命令层把退出码改成 1：
 /// 脚本 / CI 必须能感知到“历史没写进去”。
-pub async fn save(history : @history.History) -> Bool {
+async fn save(history : @history.History) -> Bool {
   save_to(history, history_path(), data_dir())
 }
 
@@ -111,7 +111,7 @@ async fn load_from(path : String) -> @history.History {
 
 ///|
 /// 读-改-写三步的快捷封装。写失败返回 `Err(message)`。
-pub async fn with_history(
+async fn with_history(
   action : async (@history.History) -> Unit,
 ) -> Result[Unit, String] {
   let history = load()

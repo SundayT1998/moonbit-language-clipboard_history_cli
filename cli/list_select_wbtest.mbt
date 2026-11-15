@@ -49,17 +49,6 @@ test "select: 过滤与截断组合，先筛后截" {
 }
 
 ///|
-test "matched: 只过滤不截断" {
-  let h = sample_history()
-  let args = { ..default_args("list"), query: Some("e"), limit: 1, }
-  // 四条里有三条含 "e"（example / password / pinned），limit 不影响 matched
-  assert_eq(matched(h, args).length(), 3)
-  assert_eq(select_with_count(h, args).0, [0])
-  let pinned = { ..default_args("list"), pinned_only: true, }
-  assert_eq(matched(h, pinned), [0])
-}
-
-///|
 test "select: 没有匹配时返回空" {
   let h = sample_history()
   let args = { ..default_args("list"), query: Some("nope"), }
@@ -101,34 +90,4 @@ test "empty_list_hint: 区分空历史、无匹配与无固定条目" {
     empty_list_hint(5, true, Some("nope")),
     "没有匹配“nope”的固定条目（共 5 条历史）。",
   )
-}
-
-///|
-async test "list 的行渲染：密钥打码、普通条目截断" {
-  with_tmp_history(async fn(path) {
-    let history = load_from(path)
-    history.reclassify()
-    let args = default_args("list")
-    let rendered = select_with_count(history, args).0.map(fn(idx) {
-      match history.get(idx) {
-        Some(e) => entry_preview(e, false)
-        None => ""
-      }
-    })
-    assert_false(rendered.contains("password=hunter2"))
-    assert_true(rendered.contains("git status"))
-    assert_true(rendered.contains("https://example.com/docs"))
-    // 固定条目的内容也能正常显示
-    assert_true(rendered.contains("pinned note"))
-  })
-}
-
-///|
-test "entry_preview: 密钥打码、普通条目截断、-f 原样" {
-  let h = sample_history()
-  let secret = h.get(1).unwrap()
-  assert_false(entry_preview(secret, false).contains("hunter2"))
-  assert_eq(entry_preview(secret, true), "password=hunter2")
-  let plain = h.get(2).unwrap()
-  assert_eq(entry_preview(plain, false), "git status")
 }

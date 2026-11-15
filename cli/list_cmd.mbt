@@ -81,7 +81,11 @@ fn empty_list_hint(
 }
 
 ///|
-async fn command_list(args : Args, path~ : String = history_path()) -> Int32 {
+async fn command_list(
+  args : Args,
+  path~ : String = history_path(),
+  now~ : Int64 = now_ms(),
+) -> Int32 {
   let history = load_from(path)
   history.reclassify()
   let (indexes, matched_count) = select_with_count(history, args)
@@ -93,7 +97,6 @@ async fn command_list(args : Args, path~ : String = history_path()) -> Int32 {
     println(empty_list_hint(history.len(), args.pinned_only, args.query))
     return 0
   }
-  let now = now_ms()
   for idx in indexes {
     match history.get(idx) {
       None => ()

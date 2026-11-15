@@ -46,7 +46,7 @@
 
 ### 1. `watch` 的单轮没有等待点，轮询正处于活动期时可能漏记复制
 
-位置：[cmd/main/commands.mbt:96-121](../../cmd/main/commands.mbt#L96-L121)、[watch/watch.mbt:93-124](../../watch/watch.mbt#L93-L124)
+位置：[cli/cli.mbt:96-121](../../cli/cli.mbt#L96-L121)、[watch/watch.mbt:93-124](../../watch/watch.mbt#L93-L124)
 
 `on_change` 回调里：
 
@@ -126,7 +126,7 @@ let fresh : Entry = {
 
 ### 4. `list` 底部统计用全量条数，过滤 / 截断后提示误导
 
-位置：[cmd/main/commands.mbt:174-179](../../cmd/main/commands.mbt#L174-L179)
+位置：[cli/list_cmd.mbt:174-179](../../cli/list_cmd.mbt#L174-L179)
 
 ```moonbit
 if args.limit > 0 && history.len() > indexes.length() {
@@ -148,7 +148,7 @@ if args.limit > 0 && history.len() > indexes.length() {
 
 ### 5. `save` 失败时命令仍以退出码 0 结束
 
-位置：[cmd/main/store_io.mbt:38-70](../../cmd/main/store_io.mbt#L38-L70)、[cmd/main/commands.mbt:340-370](../../cmd/main/commands.mbt#L340-L370)
+位置：[cli/store_io.mbt:38-70](../../cli/store_io.mbt#L38-L70)、[cli/watch_cmd.mbt:340-370](../../cli/watch_cmd.mbt#L340-L370)
 
 `save` 内部用 `catch` 打印错误后 `return`，调用方（`with_history`、`command_watch`、`run_watch` 的 `save`）都不检查结果。实测：
 
@@ -166,7 +166,7 @@ $ echo $?
 
 ### 6. 所有 `--json` 条目都会用当前规则重算，裸子串误判会整条打码
 
-位置：[cmd/main/commands.mbt:143-152](../../cmd/main/commands.mbt#L143-L152)、[history/kind.mbt:63-67](../../history/kind.mbt#L63-L67)
+位置：[cli/list_cmd.mbt:143-152](../../cli/list_cmd.mbt#L143-L152)、[history/kind.mbt:63-67](../../history/kind.mbt#L63-L67)
 
 `command_list` 每次加载后都对 `!e.is_secret` 的条目重新 `classify`，这是为了避免旧数据漏判。但 `kind.mbt` 的 `secret_markers` 是任意位置的小写子串匹配：
 
@@ -198,7 +198,7 @@ $ mtuck list --json
 
 ### 7. 未知选项只警告不报错，退出码不一致
 
-位置：[cmd/main/args.mbt:84-86](../../cmd/main/args.mbt#L84-L86)
+位置：[cli/args.mbt:84-86](../../cli/args.mbt#L84-L86)
 
 ```moonbit
 } else if arg.has_prefix("-") && arg != "-" {
@@ -214,7 +214,7 @@ $ mtuck list --json
 
 ### 9. `stats` 的“总字符”与长度上限单位口径不统一
 
-[cmd/main/commands.mbt:347](../../cmd/main/commands.mbt#L347) 的 `chars` 统计的是字符数（与上面的实际需求一致），但第 2 条中的上限判断把“字符数 × 4”当作字节。同一个模型里同时存在“字符”和“字节”两套口径，且只有一处正确，建议统一成一种并在字段名上体现（`chars` / `bytes`）。
+[cli/stats_cmd.mbt:347](../../cli/stats_cmd.mbt#L347) 的 `chars` 统计的是字符数（与上面的实际需求一致），但第 2 条中的上限判断把“字符数 × 4”当作字节。同一个模型里同时存在“字符”和“字节”两套口径，且只有一处正确，建议统一成一种并在字段名上体现（`chars` / `bytes`）。
 
 ### 10. 文档口径不一致
 
@@ -233,7 +233,7 @@ $ mtuck list --json
 
 - `history/store.mbt`：多字节文本的长度上限（第 2 条）、合并后 `ts` 的语义（第 3 条）；
 - `history/kind.mbt`：裸前缀误判反例 `akia` / `zhakia` / `Asia` / 单独一个 `bearer`（第 6 条）；
-- `cmd/main`：`save` 失败时的退出码（第 5 条，需要注入一个不可写目录）、`list -n k -q` 的底部提示（第 4 条）、未知选项的退出码（第 7 条）；
+- `cli`：`save` 失败时的退出码（第 5 条，需要注入一个不可写目录）、`list -n k -q` 的底部提示（第 4 条）、未知选项的退出码（第 7 条）；
 - `watch`：用假读取器构造“回调处理期间剪贴板再次变化”的序列，断言不会漏记（第 1 条）。现有 `watch_wbtest.mbt` 只覆盖了单轮 `poll`，没有覆盖连续变化的场景。
 
 ---
@@ -247,7 +247,7 @@ $ mtuck list --json
 
 | # | 结论 | 依据 |
 |---|---|---|
-| 1 | 已修复 | [cmd/main/commands.mbt:139-204](../../cmd/main/commands.mbt#L139-L204)：`watch_loop` 只 `poll` + `push`，写盘走 `Blocking(1)` 队列的独立消费者；队列交付是内存句柄，不是快照，不存在“旧快照覆盖新条目” |
+| 1 | 已修复 | [cli/watch_cmd.mbt:139-204](../../cli/watch_cmd.mbt#L139-L204)：`watch_loop` 只 `poll` + `push`，写盘走 `Blocking(1)` 队列的独立消费者；队列交付是内存句柄，不是快照，不存在“旧快照覆盖新条目” |
 | 2 | 已修复 | [history/store.mbt:100](../../history/store.mbt#L100) 用 `@utf8.encode(norm).length()` 判断；`stats` 同时报 `chars` / `bytes`，与 [docs/commands.md](commands.md) 一致 |
 | 4 | 已修复 | 实测 `list -n 1 -q o` 输出“（共 3 条，只显示前 1 条…）”，过滤与截断分别统计 |
 | 5 | 已修复 | `save` 返回 `Bool`，`pin` / `rm` / `clear` / `watch` 都转成退出码 1 |
@@ -269,7 +269,7 @@ $ mtuck list --json
 
 ### 13. `show` 的编号越界返回 0 ✅ 本轮已修复
 
-位置：[cmd/main/commands.mbt:264-299](../../cmd/main/commands.mbt#L264-L299)
+位置：[cli/watch_cmd.mbt:264-299](../../cli/watch_cmd.mbt#L264-L299)
 
 实测（两条历史）：
 
@@ -296,7 +296,7 @@ $ echo $?
 
 ### 15. 部分失败仍整体落盘，退出码口径不统一
 
-位置：[cmd/main/commands.mbt:330-408](../../cmd/main/commands.mbt#L330-L408)
+位置：[cli/watch_cmd.mbt:330-408](../../cli/watch_cmd.mbt#L330-L408)
 
 实测 `mtuck pin 1,9`（只有两条）：打印“没有第 9 条”，但第 1 条还是被固定并写盘，
 退出码 2。同类场景：

@@ -1,0 +1,30 @@
+// 命令行层：参数解析、各子命令的编排与终端展示。
+//
+// 独立成库包（而不是塞进 `cmd/main`）的原因：
+// - `cmd/main` 是 `executable` 包，不能被子包依赖，只能放入口；
+// - 库包里的 `_wbtest.mbt` 可以直接测 `run` / `dispatch` 的返回值，不用为测试
+//   在命令分发里加一个“测试时不退出”的分支；
+// - 主逻辑改动都不必碰 `cmd/main`。
+import {
+  "moonbitlang/core/async",
+  "moonbitlang/core/async/aqueue",
+  "moonbitlang/core/async/fs",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/env",
+  "moonbitlang/core/string",
+  "moonbit-community/proton_clipboard" @clip,
+  "moonbitlang/x/time",
+  "SundayT1998/mtuck/history",
+  "SundayT1998/mtuck/watch",
+}
+
+supported_targets = "native"
+
+options(
+  "allow-experimental-packages": [
+    "moonbitlang/core/async",
+    "moonbitlang/core/async/fs",
+    "moonbitlang/core/encoding/utf8",
+    "moonbitlang/core/async/aqueue",
+  ],
+)

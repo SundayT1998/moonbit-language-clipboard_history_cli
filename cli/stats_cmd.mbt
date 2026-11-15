@@ -1,7 +1,7 @@
 ///|
 /// `stats` 的统计结果。字符数与 UTF-8 字节数口径不同：单条上限按字节算，
 /// 所以两个都报。
-priv struct Stats {
+pub struct Stats {
   total : Int32
   pinned : Int32
   secrets : Int32
