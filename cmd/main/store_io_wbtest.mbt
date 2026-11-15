@@ -1,5 +1,10 @@
 ///|
 /// 临时改环境变量，测试结束后恢复。
+///
+/// `moon test` 默认并发跑用例，环境变量却是进程级全局状态：改值的用例和
+/// 别的读环境变量的用例同时进行就会读到半途的值。这里改值 → 跑 `f` →
+/// 恢复中间不出现挂起点，把窗口压到最小；读写的用例仍然走显式路径
+/// （见下面的 `path_roundtrip`），不依赖环境变量。
 async fn[T] with_env(key : String, value : String?, f : async () -> T) -> T {
   let old = @env.get_env_var(key)
   match value {
@@ -105,7 +110,7 @@ async test "save_to/load_from 往返，固定与密钥标记都保留" {
     h.push("password=xyz", 2L) |> ignore
     h.toggle_pin(1)
     let dir = path[:path.rev_find("/").unwrap()].to_owned()
-    save_to(h, path, dir)
+    assert_true(save_to(h, path, dir))
     let back = load_from(path)
     assert_eq(back.len(), 2)
     assert_eq(back.get(0).unwrap().text, "password=xyz")
@@ -127,10 +132,10 @@ async test "save_to 覆盖旧文件而不是追加" {
     let old = @history.History::new()
     old.push("old", 1L) |> ignore
     old.push("older", 0L) |> ignore
-    save_to(old, path, dir)
+    assert_true(save_to(old, path, dir))
     let fresh = @history.History::new()
     fresh.push("new", 2L) |> ignore
-    save_to(fresh, path, dir)
+    assert_true(save_to(fresh, path, dir))
     let back = load_from(path)
     assert_eq(back.len(), 1)
     assert_eq(back.get(0).unwrap().text, "new")
@@ -144,7 +149,7 @@ async test "save_to 会创建缺失的多级目录" {
     let dir = path[:path.rev_find("/").unwrap()].to_owned()
     let h = @history.History::new()
     h.push("deep", 1L) |> ignore
-    save_to(h, path, dir)
+    assert_true(save_to(h, path, dir))
     assert_true(@fs.exists(path) catch { _ => false })
   })
 }
@@ -159,4 +164,12 @@ async test "load_from 跳过坏行，不会崩" {
     assert_eq(back.len(), 1)
     assert_eq(back.get(0).unwrap().text, "good")
   })
+}
+
+///|
+/// 在不可能写进去的路径上调用 `save_to`：`/dev/null` 是文件，不能再当目录用。
+async test "save_to 写失败时返回 false" {
+  let h = @history.History::new()
+  h.push("x", 1L) |> ignore
+  assert_false(save_to(h, "/dev/null/history.tsv", "/dev/null"))
 }

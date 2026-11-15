@@ -45,9 +45,9 @@ fn print_json_entries(
 }
 
 ///|
-/// 统一应用 `-p` / `-q` 过滤和 `-n` 截断。
-fn select(history : @history.History, args : Args) -> Array[Int32] {
-  let mut indexes = []
+/// 应用 `-p` / `-q` 过滤，返回命中条目。不做 `-n` 截断。
+fn matched(history : @history.History, args : Args) -> Array[Int32] {
+  let out = []
   for i, e in history.entries {
     if args.pinned_only && !e.pinned {
       continue
@@ -56,12 +56,56 @@ fn select(history : @history.History, args : Args) -> Array[Int32] {
       Some(q) => if !e.text.contains(q) { continue }
       None => ()
     }
-    indexes.push(i)
+    out.push(i)
   }
+  out
+}
+
+///|
+/// 统一应用 `-p` / `-q` 过滤和 `-n` 截断。
+fn select(history : @history.History, args : Args) -> Array[Int32] {
+  let indexes = matched(history, args)
   if args.limit > 0 && indexes.length() > args.limit {
-    indexes = indexes[:args.limit].to_owned()
+    indexes[:args.limit].to_owned()
+  } else {
+    indexes
   }
-  indexes
+}
+
+///|
+/// `list` 底部统计里的一条提示。`None` 表示没什么可说的（没有截断）。
+///
+/// 区分“匹配数”和“展示数”：过滤后的条目被 `-n` 截断时，
+/// 只报过滤前的总数会让读者误以为命中了很多 / 很少。
+fn list_footer(total : Int32, matched_count : Int32, shown : Int32) -> String? {
+  if shown >= matched_count {
+    return None
+  }
+  if matched_count == total {
+    Some("（共 \{total} 条，只显示前 \{shown} 条；-n 0 看全部）")
+  } else {
+    Some(
+      "（匹配 \{matched_count} 条，只显示前 \{shown} 条；-n 0 看全部）",
+    )
+  }
+}
+
+///|
+/// 过滤后没有结果时的提示，区分“历史为空”“过滤条件太严”两种情况。
+fn empty_list_hint(
+  total : Int32,
+  pinned_only : Bool,
+  query : String?,
+) -> String {
+  if total == 0 {
+    return "历史为空。先跑 `mtuck watch` 开始记录。"
+  }
+  let scope = if pinned_only { "固定条目" } else { "条目" }
+  match query {
+    Some(q) =>
+      "没有匹配“\{q}”的\{scope}（共 \{total} 条历史）。"
+    None => "没有\{scope}（共 \{total} 条历史）。"
+  }
 }
 
 ///|
@@ -83,9 +127,12 @@ async fn command_watch(args : Args) -> Int32 {
     println("已有 \{history.len()} 条历史")
   }
   let saved = history
-  run_watch(saved, watcher, interval)
-  save(saved)
-  0
+  let loop_failed = run_watch(saved, watcher, interval)
+  if save(saved) && !loop_failed {
+    0
+  } else {
+    1
+  }
 }
 
 ///|
@@ -93,9 +140,11 @@ async fn run_watch(
   saved : @history.History,
   watcher : @watch.Watcher,
   interval : Int32,
-) -> Unit {
+) -> Bool {
   // 回调跑在 `watch_loop` 的子任务里，拿不到父任务的执行上下文；
   // 放进任务组里跑，`save` 才是真正被执行（而不是创建一个被丢弃的 future）。
+  // 轮询期间任何一次落盘失败都记下来，退出时让 `command_watch` 返回非零
+  let mut save_failed = false
   @async.with_task_group(fn(group) {
     group.spawn_bg(async fn() {
       @watch.watch_loop(
@@ -115,7 +164,9 @@ async fn run_watch(
                 println("+ [\{kind.label}] \{preview}")
               }
               // 立刻落盘：Ctrl-C 或崩溃都不会丢掉刚复制的东西
-              save(saved)
+              if !save(saved) {
+                save_failed = true
+              }
             }
             None => eprintln("mtuck: 内容过长或为空，已忽略")
           }
@@ -125,6 +176,7 @@ async fn run_watch(
       )
     })
   })
+  save_failed
 }
 
 ///|
@@ -153,12 +205,9 @@ async fn command_list(args : Args, path~ : String = history_path()) -> Int32 {
     print_json_entries(history, indexes, full=args.full)
     return 0
   }
+  let hits = matched(history, args)
   if indexes.is_empty() {
-    if history.is_empty() {
-      println("历史为空。先跑 `mtuck watch` 开始记录。")
-    } else {
-      println("没有匹配的条目。")
-    }
+    println(empty_list_hint(history.len(), args.pinned_only, args.query))
     return 0
   }
   let now = now_ms()
@@ -180,10 +229,9 @@ async fn command_list(args : Args, path~ : String = history_path()) -> Int32 {
       }
     }
   }
-  if args.limit > 0 && history.len() > indexes.length() {
-    println(
-      "（共 \{history.len()} 条，只显示前 \{indexes.length()} 条；-n 0 看全部）",
-    )
+  match list_footer(history.len(), hits.length(), indexes.length()) {
+    Some(line) => println(line)
+    None => ()
   }
   0
 }
@@ -263,7 +311,7 @@ async fn command_pin(args : Args, pin : Bool) -> Int32 {
     }
     Ok(list) => {
       let mut failed = false
-      with_history(fn(history) {
+      let saved = with_history(fn(history) {
         for idx in list {
           match history.get(idx) {
             None => {
@@ -274,7 +322,11 @@ async fn command_pin(args : Args, pin : Bool) -> Int32 {
           }
         }
       })
-      if failed {
+      if saved is Err(msg) {
+        // 写盘失败时不能再打印“已固定”，否则用户会以为成功了
+        eprintln("mtuck: \{msg}")
+        1
+      } else if failed {
         2
       } else {
         if pin {
@@ -301,7 +353,7 @@ async fn command_remove(args : Args) -> Int32 {
       sorted.sort_by(fn(a, b) { b.compare(a) })
       let mut removed = 0
       let mut missing = false
-      with_history(fn(history) {
+      let saved = with_history(fn(history) {
         for idx in sorted {
           // 删除会改变下标，所以按降序处理；越界的编号单独报出来
           if idx >= history.len() {
@@ -313,11 +365,19 @@ async fn command_remove(args : Args) -> Int32 {
           }
         }
       })
-      println("已删除 \{removed} 条")
-      if missing {
-        2
-      } else {
-        0
+      match saved {
+        Err(msg) => {
+          eprintln("mtuck: \{msg}")
+          1
+        }
+        Ok(_) => {
+          println("已删除 \{removed} 条")
+          if missing {
+            2
+          } else {
+            0
+          }
+        }
       }
     }
   }
@@ -326,18 +386,31 @@ async fn command_remove(args : Args) -> Int32 {
 ///|
 async fn command_clear(args : Args) -> Int32 {
   let keep_pinned = !args.full
-  with_history(fn(history) {
+  // 成败都在回调里打印：写盘失败时不能再说“已清空”
+  let mut report : () -> Unit = fn() { () }
+  let saved = with_history(fn(history) {
     let before = history.len()
     history.clear(keep_pinned~)
     let after = history.len()
-    println("已清空 \{before - after} 条")
-    if after > 0 {
-      println(
-        "保留固定条目 \{after} 条；`mtuck clear -f` 连固定的也删",
-      )
+    report = fn() {
+      println("已清空 \{before - after} 条")
+      if after > 0 {
+        println(
+          "保留固定条目 \{after} 条；`mtuck clear -f` 连固定的也删",
+        )
+      }
     }
   })
-  0
+  match saved {
+    Ok(_) => {
+      report()
+      0
+    }
+    Err(msg) => {
+      eprintln("mtuck: \{msg}")
+      1
+    }
+  }
 }
 
 ///|
