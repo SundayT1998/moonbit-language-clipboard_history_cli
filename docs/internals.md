@@ -15,6 +15,9 @@
 - **读写剪贴板**：通过 [`moonbit-community/proton_clipboard`](https://mooncakes.io/docs/moonbit-community/proton_clipboard)，
   Windows / macOS 原生调用，Linux 调用 `wl-paste`/`xclip`/`xsel`。
 - **持久化**：每次有变化立刻"写临时文件 + rename"落盘，Ctrl-C、崩溃都不会留下半个文件。
+  轮询和落盘是两个任务：`watch_loop` 读剪贴板、改写内存，消费者任务按序写盘。
+  落盘期间轮询不会被卡住，连续复制的中间内容不会被漏掉；队列（`Blocking(4)`）
+  满时轮询会等一等，保证退出前最后一次修改一定写盘。
 
 ## 历史模型
 
