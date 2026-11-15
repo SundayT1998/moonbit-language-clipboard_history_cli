@@ -77,13 +77,13 @@ mtuck list -q moon   # 按子串搜索
 | `mtuck pin <n>` / `unpin <n>` | | 固定 / 取消固定条目 |
 | `mtuck rm <n>` | `remove` | 删除条目 |
 | `mtuck clear` | | 清空历史（默认保留固定条目，`-f` 全清） |
-| `mtuck stats` | | 条目数、固定数、疑似密钥数、总字符 / 总字节、类型分布 |
+| `mtuck stats` | | 条目数、固定数、疑似密钥数、总字符 / 总字节 |
 | `mtuck help` / `version` | `-h` / `--help`、`--version` | 帮助 / 版本号 |
 
 `<n>` 是最新为 `0` 的编号，也支持 `last`、`1,3,5`、`2-5` 等写法。
 完整选项、环境变量、`--json` 输出格式与退出码见 [docs/commands.md](docs/commands.md)。
 
-更多文档（工作原理与存储格式、开发指南、开机自启）见 [docs/](docs/)；历次问题记录归档在 [docs/issues/](docs/issues/)。
+更多文档（工作原理与存储格式、开发指南、开机自启）见 [docs/](docs/)，贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)；历次问题复查记录见 [docs/issue.md](docs/issue.md)。
 
 ## 路线图
 
