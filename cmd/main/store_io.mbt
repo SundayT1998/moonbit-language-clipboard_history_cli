@@ -3,16 +3,35 @@
 pub fn data_dir() -> String {
   let custom = @env.get_env_var("MTUCK_DIR")
   if custom is Some(dir) && dir != "" {
-    return dir
+    return absolute(dir)
   }
   match @env.get_env_var("HOME") {
     Some(home) =>
       if home != "" {
         "\{home}/.local/share/mtuck"
       } else {
-        ".mtuck"
+        fallback_dir()
       }
-    None => ".mtuck"
+    None => fallback_dir()
+  }
+}
+
+///|
+/// 没有 `HOME` 时的兜底目录 `.mtuck`。补成绝对路径：相对路径要相对于
+/// **当前工作目录**算，`watch` 跑着的时候切换目录也不会写到别处去。
+fn fallback_dir() -> String {
+  absolute(".mtuck")
+}
+
+///|
+fn absolute(path : String) -> String {
+  if path.has_prefix("/") {
+    path
+  } else {
+    match @env.current_dir() {
+      Some(cwd) => "\{cwd}/\{path}"
+      None => path
+    }
   }
 }
 
@@ -24,20 +43,25 @@ fn history_path() -> String {
 ///|
 /// 读历史；文件还不存在（首次运行）就返回空历史。
 pub async fn load() -> @history.History {
-  let path = history_path()
-  let exists = @fs.exists(path) catch { _ => false }
-  if !exists {
-    return @history.History::new()
-  }
-  let raw = @fs.read_text(path) catch { _ => "" }
-  @history.decode(raw)
+  load_from(history_path())
 }
 
 ///|
 /// 写历史。先写 `.tmp` 再 rename，Ctrl-C 打断也不会留下半个文件。
 pub async fn save(history : @history.History) -> Unit {
-  let dir = data_dir()
-  let path = history_path()
+  save_to(history, history_path(), data_dir())
+}
+
+///|
+/// 把历史写进给定的 `path`（目录 `dir` 会被创建并收紧到 0700）。
+///
+/// 路径显式传进来而不是内部读环境变量，测试才能在不改进程环境的前提下
+/// 把文件写进临时目录。
+async fn save_to(
+  history : @history.History,
+  path : String,
+  dir : String,
+) -> Unit {
   let tmp = "\{path}.tmp"
   // 历史文件里有密码和 token 原文：目录 0700、文件 0600，只给当前用户读。
   @fs.mkdir(dir, permission=0o700, recursive=true, allow_exist=true) catch {
@@ -65,6 +89,17 @@ pub async fn save(history : @history.History) -> Unit {
   @fs.rename(tmp, path, replace=true) catch {
     e => eprintln("mtuck: 保存历史失败: \{e}")
   }
+}
+
+///|
+/// 从给定路径读历史；文件不存在或读不出来都当成空历史。
+async fn load_from(path : String) -> @history.History {
+  let exists = @fs.exists(path) catch { _ => false }
+  if !exists {
+    return @history.History::new()
+  }
+  let raw = @fs.read_text(path) catch { _ => "" }
+  @history.decode(raw)
 }
 
 ///|

@@ -27,6 +27,13 @@ async fn run(args : Array[String]) -> Int32 {
       return 2
     }
   }
+  dispatch(parsed)
+}
+
+///|
+/// 按命令名分发。纯命令（help / version / 未知命令）可以脱离文件系统测试，
+/// 其余命令各自读历史文件。
+async fn dispatch(parsed : Args) -> Int32 {
   match parsed.command {
     "help" | "--help" | "-h" | "" => {
       print_help()

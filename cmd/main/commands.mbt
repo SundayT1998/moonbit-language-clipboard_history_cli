@@ -128,10 +128,10 @@ async fn run_watch(
 }
 
 ///|
-async fn command_list(args : Args) -> Int32 {
-  let history = load()
-  // 旧版本写入的条目没做充分识别，这里按当前规则重新判定一遍，
-  // 避免早已落盘的密钥继续明文显示。
+/// 读历史，并按当前规则重新判定未标记为密钥的条目。
+///
+/// 旧版本写入的条目没做充分识别，这里重判一遍，避免早已落盘的密钥继续明文显示。
+fn reclassify(history : @history.History) -> Unit {
   for i, e in history.entries {
     if !e.is_secret {
       let kind = @history.classify(e.text)
@@ -142,6 +142,12 @@ async fn command_list(args : Args) -> Int32 {
       }
     }
   }
+}
+
+///|
+async fn command_list(args : Args, path~ : String = history_path()) -> Int32 {
+  let history = load_from(path)
+  reclassify(history)
   let indexes = select(history, args)
   if args.json {
     print_json_entries(history, indexes, full=args.full)
@@ -183,7 +189,7 @@ async fn command_list(args : Args) -> Int32 {
 }
 
 ///|
-async fn command_show(args : Args) -> Int32 {
+async fn command_show(args : Args, path~ : String = history_path()) -> Int32 {
   let indexes = resolve_indexes(args)
   match indexes {
     Err(msg) => {
@@ -191,7 +197,7 @@ async fn command_show(args : Args) -> Int32 {
       2
     }
     Ok(list) => {
-      let history = load()
+      let history = load_from(path)
       for idx in list {
         match history.get(idx) {
           None => eprintln("mtuck: 没有第 \{idx} 条")
@@ -212,14 +218,18 @@ async fn command_show(args : Args) -> Int32 {
 }
 
 ///|
-async fn command_copy(args : Args) -> Int32 {
+async fn command_copy(
+  args : Args,
+  path~ : String = history_path(),
+  write~ : async (String) -> Int32 = copy_to_clipboard,
+) -> Int32 {
   match resolve_indexes(args) {
     Err(msg) => {
       eprintln(msg)
       2
     }
     Ok(list) => {
-      let history = load()
+      let history = load_from(path)
       match list {
         [idx] =>
           match history.get(idx) {
@@ -228,7 +238,7 @@ async fn command_copy(args : Args) -> Int32 {
               2
             }
             Some(e) => {
-              let code = copy_to_clipboard(e.text)
+              let code = write(e.text)
               if code == 0 {
                 println("已写回剪贴板：#\{idx}")
               }
@@ -331,8 +341,8 @@ async fn command_clear(args : Args) -> Int32 {
 }
 
 ///|
-async fn command_stats(args : Args) -> Int32 {
-  let history = load()
+async fn command_stats(args : Args, path~ : String = history_path()) -> Int32 {
+  let history = load_from(path)
   let mut pinned = 0
   let mut secrets = 0
   let mut bytes = 0
@@ -353,7 +363,7 @@ async fn command_stats(args : Args) -> Int32 {
     out.write_string("{\"total\":\{history.len()}")
     out.write_string(",\"pinned\":\{pinned},\"secret\":\{secrets}")
     out.write_string(",\"chars\":\{bytes}")
-    out.write_string(",\"path\":\"\{json_escape(history_path())}\"")
+    out.write_string(",\"path\":\"\{json_escape(path)}\"")
     out.write_string(",\"kinds\":{")
     let mut first = true
     for k, v in kinds {
@@ -371,7 +381,7 @@ async fn command_stats(args : Args) -> Int32 {
   println("已固定   \{pinned}")
   println("疑似密钥 \{secrets}")
   println("总字符   \{bytes}")
-  println("存储     \{history_path()}")
+  println("存储     \{path}")
   if !kinds.is_empty() {
     let pairs = kinds.to_array()
     pairs.sort_by(fn(a, b) { b.1.compare(a.1) })

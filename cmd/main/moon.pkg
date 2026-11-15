@@ -3,8 +3,9 @@ import {
   "moonbitlang/core/async",
   "moonbitlang/core/async/fs",
   "moonbitlang/core/env",
-  "moonbit-community/proton_clipboard" @clip,
   "moonbitlang/core/string",
+  "moonbit-community/proton_clipboard" @clip,
+  "moonbitlang/x/time",
   "SundayT1998/mtuck/history",
   "SundayT1998/mtuck/watch",
 }

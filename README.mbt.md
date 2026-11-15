@@ -206,11 +206,12 @@ mtuck list -q "$(xclip -o -selection clipboard)"
 ### 历史模型
 
 - 头部永远是最新一条，编号即位置。
-- **去重**：新内容与已有未固定条目相同时合并为一条，`hits` 加一，并提到最前。
+- **去重**：新内容与已有未固定条目相同时合并为一条，`hits` 加一，并提到最前；
+  合并后的 `ts` 仍是**首次**复制的时间（`list` 里的“多久以前”指首次出现）。
 - **上限**：默认 1000 条（`history/store.mbt` 中的 `max_entries`），超出后从最旧的
   **未固定**条目开始丢。
 - **固定**：`pin` 过的条目永不淘汰、也不参与合并——适合放常用命令、模板。
-- **单条上限**：256 KiB（按 UTF-8 估算），超过直接忽略，`watch` 会提示。
+- **单条上限**：256 KiB（按 UTF-8 编码后的真实字节数），超过直接忽略，`watch` 会提示。
 
 ### 内容类型与保密判定
 
@@ -236,7 +237,7 @@ mtuck list -q "$(xclip -o -selection clipboard)"
 ts	hits	pinned	kind	is_secret	text
 ```
 
-其中 `text` 里的换行、制表、回车、反斜杠会被转义。选它而不是 JSON 的原因：
+`ts` 是首次复制的毫秒时间戳。其中 `text` 里的换行、制表、回车、反斜杠会被转义。选它而不是 JSON 的原因：
 零额外依赖、`grep`/`diff` 友好、单行损坏可以跳过而不影响其余数据。
 
 文件是**明文**的：目录权限 0700、`history.tsv` 权限 0600，只有当前用户可读。
@@ -377,7 +378,7 @@ schtasks /Create /SC ONLOGON /TN "mtuck watch" /TR "C:\tools\mtuck.exe watch" /R
 
 ```bash
 moon check --target native   # 类型检查
-moon test --target native    # 跑测试（当前 18 个）
+moon test --target native    # 跑测试（当前 115 个）
 moon fmt                     # 格式化
 moon info                    # 更新 .mbti 接口文件，检查对外 API 是否变化
 ```

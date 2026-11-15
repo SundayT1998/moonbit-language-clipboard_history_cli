@@ -97,7 +97,7 @@ pub fn History::push(
   max_bytes~ : Int32 = max_entry_bytes,
 ) -> Int32? {
   let norm = normalize_text(text)
-  if norm.is_empty() || norm.length() * 4 > max_bytes {
+  if norm.is_empty() || @utf8.encode(norm).length() > max_bytes {
     return None
   }
   let kind = classify(norm)
@@ -152,26 +152,54 @@ fn make_entry(text : String, now_ms : Int64, kind : Kind) -> Entry {
 }
 
 ///|
-/// 超过上限时丢掉最旧的未固定条目，固定条目永不淘汰。
+/// 超过上限时丢掉最旧的未固定条目。只有真的删掉了条目才重新绑定字段。
+///
+/// 注意：不删的时候**不要**写 `self.entries = ...`。`entries` 是 mut 字段，
+/// 任何赋值都可能拿到一份 `trim_entries` 里被复制过的新数组，而调用方手里
+/// 正在遍历的旧快照会和新数组脱钩——满载时插一条就丢一条，实测踩到过。
 fn History::trim(self : History) -> Unit {
-  while self.entries.length() > max_entries {
-    // 注意：这里刻意不用 `search_by`，那条路径在满载时会把刚插入的头部
-    // 换掉（在 1000 条满载的边界上实测踩到过）。从尾部倒着找第一个
-    // 未固定的条目，行为可预测。
-    let mut target = -1
-    let mut i = self.entries.length() - 1
-    while i >= 0 {
-      if !self.entries[i].pinned {
-        target = i
-        break
-      }
-      i = i - 1
-    }
-    if target < 0 {
-      break
-    }
-    self.entries.remove(target) |> ignore
+  if self.entries.length() <= max_entries {
+    return
   }
+  let trimmed = trim_entries(self.entries)
+  if trimmed.length() != self.entries.length() {
+    self.entries = trimmed
+  }
+}
+
+///|
+/// 把条目表砍到上限以内：从尾部倒着扫一遍，删掉最旧的未固定条目。
+///
+/// 注意：这里刻意不用 `search_by`，那条路径在满载时会把刚插入的头部
+/// 换掉（在 1000 条满载的边界上实测踩到过）。从尾部倒着找，行为可预测。
+///
+/// 满上限之后每个新条目都要走一遍这里，所以不超限时直接返回原数组，
+/// 只在**第一次真删**时复制一份：正常情况下都是原地删除。
+fn trim_entries(entries : Array[Entry]) -> Array[Entry] {
+  if entries.length() <= max_entries {
+    return entries
+  }
+  // 先只找要删的下标，一个都不删就不复制数组
+  let victims : Array[Int32] = []
+  let excess = entries.length() - max_entries
+  // `i` 单独声明：循环的起始值会先被当成 `i - 1` 求值，复用同一个变量会
+  // 把长度减一，导致少删一条
+  let mut i = entries.length() - 1
+  while i >= 0 && victims.length() < excess {
+    if !entries[i].pinned {
+      victims.push(i)
+    }
+    i = i - 1
+  }
+  if victims.is_empty() {
+    return entries
+  }
+  // 降序删除：先删后面的，前面的下标就不会变
+  let result = entries.copy()
+  for v in victims {
+    result.remove(v) |> ignore
+  }
+  result
 }
 
 ///|
