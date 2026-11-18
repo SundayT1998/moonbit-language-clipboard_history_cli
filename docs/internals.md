@@ -12,9 +12,11 @@
 - **事件源**：`watch` 包负责轮询。macOS 的 `NSPasteboard.changeCount`、Windows 的
   `GetClipboardSequenceNumber` 提供轻量的"剪贴板变了没"计数（见
   [platform/stub.c](../platform/stub.c)），Linux 没有这类接口，直接读文本比对。
-- **读写剪贴板**：通过 [`moonbit-community/proton_clipboard`](https://mooncakes.io/docs/moonbit-community/proton_clipboard)，
-  Windows / macOS 原生调用，Linux 调用 `wl-paste`/`xclip`/`xsel`。
-  本仓库不含任何剪贴板协议实现，Linux 的能力完全由这些外部命令提供。
+- **读写剪贴板**：本仓库自己实现（`platform/clipboard_backend.c`）。
+  Windows 走 Win32 剪贴板 API，macOS 走 AppKit `NSPasteboard`（用 objc runtime 调用，
+  不需要额外头文件），Linux 走 `wl-paste` / `xclip` / `xsel` 这些图形服务器客户端。
+- **后端选择**：`platform/backend.mbt` 是纯逻辑，输入一份环境快照（`PATH` 里有哪些命令、
+  `DISPLAY` / `WAYLAND_DISPLAY` 的值、对应 socket 在不在），输出该用哪个后端或为什么用不了。
 - **后端探测**：`watch` 启动时先确认剪贴板后端可达（见下节），不可达直接退出，不进入轮询。
 - **持久化**：每次有变化立刻"写临时文件 + rename"落盘，Ctrl-C、崩溃都不会留下半个文件。
   轮询和落盘是两个任务：`watch_loop` 读剪贴板、改写内存，消费者任务按序写盘，
@@ -92,11 +94,21 @@ ts	hits	pinned	kind	is_secret	text
 `list` / `show` / `pin` / `unpin` / `rm` / `clear` / `stats` 只读写 `history.tsv`，
 所以在 SSH 与容器里对同一份历史做检索与管理是成立的；这也让 `moon test` 与 CI 不依赖任何剪贴板后端。
 
-上游 `proton_clipboard` 在 Linux 上只按 `PATH` 探测 `wl-paste` / `xclip` / `xsel` 是否存在，
-**不探测能否连上服务器**，所以「装了 `xclip` 但没有 X server」会被误判为后端可用，
-读出来是空内容或 `Failed to read clipboard`。`mtuck` 在 `watch` 启动前额外检查
-`DISPLAY` / `WAYLAND_DISPLAY` 与实际 socket，连不上就直接给出人话报错，
-避免用户从一行笼统的读取失败里去猜根因。
+只按 `PATH` 有没有 `wl-paste` / `xclip` / `xsel` 判断后端可用是不够的：
+「装了 `xclip` 但没有 X server」一样会失败，读出来是空内容或超时。
+`mtuck` 在 `watch` / `copy` 启动前探测 `DISPLAY` / `WAYLAND_DISPLAY` 与实际 socket，
+把不可用拆成三种可区分的结论，分别给出能照着做的建议：
+
+| 现象 | 结论 | 提示 |
+| --- | --- | --- |
+| 两个显示变量都没设，也没有任何工具 | 缺工具 | 装 `wl-clipboard` / `xclip` / `xsel` |
+| 两个显示变量都没设，工具在 | 没有图形会话 | 需要桌面会话、Xvfb 或 `ssh -X` |
+| 地址设了但 socket 不在 | 连不上服务器 | 检查 X server 是否还活着、`DISPLAY` 是否指对 |
+| 会话在、工具不在 | 缺工具 | 按会话类型提示装哪个 |
+
+命令行后端还额外处理了几种边界：子进程 2 秒硬超时（服务器卡住不会一起拖死）、
+`wl-paste` / `xclip` / `xsel` 依次降级、写入走临时文件避免管道 EOF 问题、
+读到含 NUL 的二进制内容（图片等）按「没有文本」处理、内容超过 1 MiB 直接跳过。
 
 ---
 

@@ -2,11 +2,67 @@
 package "SundayT1998/mtuck/platform"
 
 // Values
+pub fn availability() -> Availability
+
 pub fn change_token() -> UInt64?
+
+pub fn current_env() -> Env
+
+pub fn detect(Env) -> Availability
+
+pub fn is_command_in(Array[String], String) -> Bool
+
+pub fn native_kind() -> String
+
+pub fn os_name() -> String
+
+pub fn path_dirs(String) -> Array[String]
+
+pub fn path_exists(String) -> Bool
+
+pub fn read_text() -> Result[String?, String]
+
+pub fn socket_path_candidates(String) -> Array[String]
+
+pub fn wayland_socket_paths(String) -> Array[String]
+
+pub fn write_text(String) -> Result[Unit, String]
+
+pub fn x11_socket_alive(String) -> Bool
 
 // Errors
 
 // Types and methods
+pub(all) enum Availability {
+  Ready(Backend)
+  Unavailable(BackendError)
+}
+pub impl Show for Availability
+
+pub(all) enum Backend {
+  Native(String)
+  Wayland
+  Xclip
+  Xsel
+}
+pub impl Show for Backend
+
+pub(all) enum BackendError {
+  NoDisplay
+  MissingTools(String)
+  DisplayUnreachable(String)
+  UnsupportedPlatform
+}
+pub impl Show for BackendError
+
+pub(all) struct Env {
+  platform : String
+  native : String
+  has_command : (String) -> Bool
+  x11_display : String?
+  wayland_display : String?
+  has_socket : (String) -> Bool
+}
 
 // Type aliases
 

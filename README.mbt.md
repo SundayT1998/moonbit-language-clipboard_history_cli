@@ -44,7 +44,8 @@ install -m 755 _build/native/release/build/cmd/main/main.exe ~/.local/bin/mtuck
 
 ### 运行环境与剪贴板后端
 
-`mtuck` 不自己实现剪贴板协议，读写都交给 [proton_clipboard](https://mooncakes.io/docs/moonbit-community/proton_clipboard)。
+剪贴板读写由 `mtuck` 自己实现（`platform/clipboard_backend.c`），不依赖第三方剪贴板包：
+Windows 与 macOS 直接调系统 API，Linux 走 `PATH` 里的 `wl-paste` / `xclip` / `xsel`。
 各平台的输入来源不同，这决定了哪些命令在哪种环境里能用：
 
 | 平台 | 读取 / 写入 | 变更检测 | 额外依赖 |
@@ -61,8 +62,10 @@ install -m 755 _build/native/release/build/cmd/main/main.exe ~/.local/bin/mtuck
   `list` / `show` / `pin` / `unpin` / `rm` / `clear` / `stats` 照常工作——它们只读写纯文本的 `history.tsv`，
   所以在远程机器上照样能查历史、也能被脚本直接消费。
 
-注意 `proton_clipboard` 在 Linux 上只检查 `PATH` 里有没有 `wl-paste` / `xclip` / `xsel`，不检查能否连上服务器。
-`mtuck` 因此在 `watch` 启动前额外探测一次显示服务器，连不上就直接报错，而不是每隔几百毫秒刷一行「读剪贴板失败」。
+`watch` 与 `copy` 启动前会先探一次后端：没图形会话、装了工具但 `DISPLAY` 连不上、
+有会话但一个工具都没装，都会直接给出对应的处理建议并退出，
+而不是每隔几百毫秒刷一行「读剪贴板失败」。后端不可用时只影响这两条命令，
+`list` / `show` / `pin` / `rm` / `stats` 照常读写 `history.tsv`。
 
 ## 快速上手
 
@@ -82,7 +85,7 @@ mtuck list -q moon   # 按子串搜索
 监听剪贴板中（每 1000ms 检查一次，Ctrl-C 退出）
 已有 12 条历史
 + [text] git log --oneline -20
-+ [url] https://mooncakes.io/docs/moonbit-community/proton_clipboard
++ [url] https://mooncakes.io/docs/moonbitlang/x
 + [secret] ghp••••••••  (40 字符)
 ```
 
@@ -121,5 +124,4 @@ mtuck list -q moon   # 按子串搜索
 
 ## 许可
 
-[Apache-2.0](LICENSE)。内置的剪贴板能力来自
-[proton_clipboard](https://mooncakes.io/docs/moonbit-community/proton_clipboard)。
+[Apache-2.0](LICENSE)。剪贴板读写是本仓库自己的实现，不依赖第三方剪贴板包。

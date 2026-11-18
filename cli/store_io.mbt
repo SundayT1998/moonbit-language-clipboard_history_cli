@@ -67,7 +67,7 @@ async fn save_to(
 ) -> Bool {
   let tmp = "\{path}.tmp"
   // 历史文件里有密码和 token 原文：目录 0700、文件 0600，只给当前用户读。
-  @fs.mkdir(dir, permission=0o700, recursive=true, allow_exist=true) catch {
+  @fs.mkdir(dir, permission=0o700, recursive=true, allow_existing=true) catch {
     _ => ()
   }
   // 收紧已存在目录的权限（老版本建出来的可能是 0755）

@@ -89,7 +89,7 @@ async fn path_roundtrip(f : async (String) -> Unit) -> Unit {
   let dir = @fs.tmpdir(prefix="mtuck-test-") catch { e => abort(e.to_string()) }
   let path = "\{dir}/data/history.tsv"
   f(path)
-  @fs.rmdir(dir, recursive=true, allow_missing=true) catch {
+  @fs.remove(dir, recursive=true, allow_missing=true) catch {
     _ => ()
   }
 }
@@ -158,7 +158,7 @@ async test "save_to 会创建缺失的多级目录" {
 async test "load_from 跳过坏行，不会崩" {
   path_roundtrip(async fn(path) {
     let dir = path[:path.rev_find("/").unwrap()].to_owned()
-    @fs.mkdir(dir, recursive=true, allow_exist=true)
+    @fs.mkdir(dir, recursive=true, allow_existing=true)
     @fs.write_text(path, "garbage\n1\t1\t0\ttext\t0\tgood\n")
     let back = load_from(path)
     assert_eq(back.len(), 1)

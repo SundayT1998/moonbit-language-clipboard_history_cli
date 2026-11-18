@@ -16,9 +16,9 @@ fn fake_reader(values : Array[String?]) -> async () -> Result[String?, String] {
 ///|
 async test "poll 只在内容变化时返回 Changed" {
   let read = fake_reader([Some("a"), Some("b")])
+  // 启动时的内容也是新内容：watch 可能是在用户刚复制完之后才起来的
   let watcher = Watcher::new(read, initial=Some("a"))
-  // 第一条 a 与初始值相同，不算变化
-  assert_eq(watcher.poll(), Idle)
+  assert_eq(watcher.poll(), Changed("a"))
   assert_eq(watcher.poll(), Changed("b"))
   assert_eq(watcher.poll(), Idle)
 }
@@ -102,10 +102,36 @@ async test "poll 的读取器抛异常时转成 Failed" {
 ///|
 async test "poll 会把内容首尾空白去掉再比较" {
   let read = fake_reader([Some("  a  "), Some(" a"), Some("b ")])
-  let watcher = Watcher::new(read, initial=Some("a"))
-  assert_eq(watcher.poll(), Idle)
+  let watcher = Watcher::new(read)
+  // 第一次读到的 a 是“新内容”，之后空白差异不算变化
+  assert_eq(watcher.poll(), Changed("a"))
   assert_eq(watcher.poll(), Idle)
   assert_eq(watcher.poll(), Changed("b"))
+}
+
+///|
+async test "没有变更计数时，启动瞬间的内容也会被记录" {
+  // Linux 上没有 changeCount 这类接口，初始值不能直接当成“已经记过”：
+  // 用户可能刚刚才复制，watch 还一次都没记
+  let read = fake_reader([Some("刚复制的")])
+  let watcher = Watcher::new(read, initial=Some("刚复制的"))
+  assert_eq(watcher.poll(), Changed("刚复制的"))
+}
+
+///|
+async test "有变更计数时，计数不变就不再去读剪贴板" {
+  // macOS / Windows 上计数就是“变了没”的答案，连文本都不用读。
+  let reads = Ref(0)
+  let read : async () -> Result[String?, String] = fn() {
+    reads.val = reads.val + 1
+    Ok(Some("旧的"))
+  }
+  // 计数接口只在 macOS / Windows 上有，这里只在那些平台上验证
+  if @platform.change_token() is Some(_) {
+    let watcher = Watcher::new(read, initial=Some("旧的"))
+    assert_eq(watcher.poll(), Idle)
+    assert_eq(reads.val, 0)
+  }
 }
 
 ///|
