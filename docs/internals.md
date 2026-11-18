@@ -14,6 +14,8 @@
   [platform/stub.c](../platform/stub.c)），Linux 没有这类接口，直接读文本比对。
 - **读写剪贴板**：通过 [`moonbit-community/proton_clipboard`](https://mooncakes.io/docs/moonbit-community/proton_clipboard)，
   Windows / macOS 原生调用，Linux 调用 `wl-paste`/`xclip`/`xsel`。
+  本仓库不含任何剪贴板协议实现，Linux 的能力完全由这些外部命令提供。
+- **后端探测**：`watch` 启动时先确认剪贴板后端可达（见下节），不可达直接退出，不进入轮询。
 - **持久化**：每次有变化立刻"写临时文件 + rename"落盘，Ctrl-C、崩溃都不会留下半个文件。
   轮询和落盘是两个任务：`watch_loop` 读剪贴板、改写内存，消费者任务按序写盘，
   落盘期间轮询不会被卡住，连续复制的中间内容不会漏掉；队列（`Blocking(1)`）
@@ -57,7 +59,7 @@ ts	hits	pinned	kind	is_secret	text
 ```
 
 `ts` 是**首次**复制该内容的毫秒时间戳（去重合并只加 `hits`，不改 `ts`）。其中 `text` 里的换行、制表、回车、反斜杠会被转义。选它而不是 JSON 的原因：
-零额外依赖、`grep`/`diff` 友好、单行损坏可以跳过而不影响其余数据。
+不需要数据库或第三方序列化库、`grep`/`diff` 友好、单行损坏可以跳过而不影响其余数据。
 
 文件是**明文**的：目录权限 0700、`history.tsv` 权限 0600，只有当前用户可读。
 识别为 `secret` 的条目同样以原文落盘（只是显示时打码），
@@ -65,11 +67,36 @@ ts	hits	pinned	kind	is_secret	text
 
 ## 平台实现说明
 
-| 平台 | 变更检测 | 读写剪贴板 |
+| 平台 | 变更检测 | 读写剪贴板 | 额外依赖 |
+| --- | --- | --- | --- |
+| macOS | `NSPasteboard.changeCount`（C stub） | AppKit `NSPasteboard` | 无 |
+| Windows | `GetClipboardSequenceNumber`（C stub） | Win32 剪贴板 API | 无 |
+| Linux（Wayland） | 读文本比对 | `wl-paste` / `wl-copy` | `wl-clipboard` |
+| Linux（X11） | 读文本比对 | `xclip` / `xsel` | `xclip` 或 `xsel` |
+
+`platform/stub.c` 只负责「剪贴板变了没」这个计数快路径，缺失（返回 `0`）时自动退化为读文本比对，
+与读写剪贴板本身无关。
+
+## 剪贴板后端与可用性边界
+
+剪贴板是图形服务器的能力，不是进程自己的状态。因此「有没有桌面」并不关键，
+**有没有能连上的图形服务器**才是关键：`xclip` / `wl-paste` 只需要 `XOpenDisplay` / 连 Wayland socket，
+不需要窗口管理器，也不需要显示器。
+
+| 环境 | `watch` / `copy` | 其余命令 |
 | --- | --- | --- |
-| macOS | `NSPasteboard.changeCount`（C stub） | AppKit `NSPasteboard` |
-| Windows | `GetClipboardSequenceNumber`（C stub） | Win32 剪贴板 API |
-| Linux | 读文本比对 | `wl-paste` / `xclip` / `xsel` |
+| 本地桌面（X11 或 Wayland） | 可用 | 可用 |
+| 无桌面但有图形服务器（Xvfb、`ssh -X`） | 可用，但剪贴板内容取决于有没有 owner | 可用 |
+| 无图形服务器（纯 SSH、无 X11 的容器、CI） | 报错退出 | 可用 |
+
+`list` / `show` / `pin` / `unpin` / `rm` / `clear` / `stats` 只读写 `history.tsv`，
+所以在 SSH 与容器里对同一份历史做检索与管理是成立的；这也让 `moon test` 与 CI 不依赖任何剪贴板后端。
+
+上游 `proton_clipboard` 在 Linux 上只按 `PATH` 探测 `wl-paste` / `xclip` / `xsel` 是否存在，
+**不探测能否连上服务器**，所以「装了 `xclip` 但没有 X server」会被误判为后端可用，
+读出来是空内容或 `Failed to read clipboard`。`mtuck` 在 `watch` 启动前额外检查
+`DISPLAY` / `WAYLAND_DISPLAY` 与实际 socket，连不上就直接给出人话报错，
+避免用户从一行笼统的读取失败里去猜根因。
 
 ---
 

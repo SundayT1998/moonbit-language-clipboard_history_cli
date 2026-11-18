@@ -5,7 +5,7 @@
 ## 环境
 
 - [MoonBit CLI](https://www.moonbitlang.com/download/)（国内镜像：<https://www.moonbitlang.cn/download/>）；
-- Linux 上如需真跑 `watch` / `copy`，另装 `wl-clipboard`（Wayland）或 `xclip` / `xsel`（X11）。
+- Linux 上如需真跑 `watch` / `copy`，另装 `wl-clipboard`（Wayland）或 `xclip` / `xsel`（X11），并且需要一个能连上的 X11 / Wayland 会话；没有图形服务器的机器上这两条命令不可用，`list` / `show` / `stats` 等照常。
 
 ## 提交前自查
 

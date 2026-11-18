@@ -4,7 +4,7 @@
 `mtuck` 是一个用 [MoonBit](https://www.moonbitlang.com/) 写的**终端剪贴板管理器**：
 常驻后台记录你复制过的每一段内容，需要时按编号找回来、搜出来、再写回剪贴板。
 
-- **跨平台**：macOS、Windows、Linux（Wayland / X11）一套代码，原生编译（`native` 后端）。
+- **跨平台**：macOS、Windows、Linux（Wayland / X11）一套代码，原生编译（`native` 后端），单二进制，不需要 Node / JVM 之类的语言运行时。
 - **不离开终端**：`list` / `show` / `copy`，配合 shell 别名和管道即可接入任何工作流。
 - **默认安全**：识别出的密钥、Token、带口令的连接串会自动打码，避免明文进历史文件。
 
@@ -19,7 +19,7 @@ $ mtuck list
 ## 安装
 
 需要 [MoonBit CLI](https://www.moonbitlang.com/download/)（国内可用 [镜像](https://www.moonbitlang.cn/download/)）。
-macOS / Windows 的剪贴板走系统原生接口，无需额外依赖；Linux 需要 `wl-clipboard`（Wayland）或 `xclip` / `xsel`（X11）：
+macOS / Windows 的剪贴板走系统原生接口，无需额外依赖；Linux 通过外部命令读写剪贴板，需要 `wl-clipboard`（Wayland）或 `xclip` / `xsel`（X11）之一：
 
 ```bash
 # Debian / Ubuntu
@@ -41,6 +41,28 @@ install -m 755 _build/native/release/build/cmd/main/main.exe ~/.local/bin/mtuck
 ```
 
 确认 `~/.local/bin` 在 `PATH` 里，然后 `mtuck version` 验证安装。
+
+### 运行环境与剪贴板后端
+
+`mtuck` 不自己实现剪贴板协议，读写都交给 [proton_clipboard](https://mooncakes.io/docs/moonbit-community/proton_clipboard)。
+各平台的输入来源不同，这决定了哪些命令在哪种环境里能用：
+
+| 平台 | 读取 / 写入 | 变更检测 | 额外依赖 |
+| --- | --- | --- | --- |
+| macOS | AppKit `NSPasteboard` | `NSPasteboard.changeCount` | 无 |
+| Windows | Win32 剪贴板 API | `GetClipboardSequenceNumber` | 无 |
+| Linux（Wayland） | `wl-paste` / `wl-copy` | 读文本比对 | `wl-clipboard` |
+| Linux（X11） | `xclip` 或 `xsel` | 读文本比对 | `xclip` 或 `xsel` |
+
+剪贴板本身属于图形服务器，所以还需要一个**能连上的** X11（`DISPLAY`）或 Wayland（`WAYLAND_DISPLAY`）会话：
+
+- **有图形服务器**（本地桌面、`Xvfb`、`ssh -X` 转发）：`watch` 与 `copy` 可用。
+- **没有图形服务器**（纯 SSH 会话、无 X11 的容器、CI）：`watch` 与 `copy` 会报错退出并提示缺少后端；
+  `list` / `show` / `pin` / `unpin` / `rm` / `clear` / `stats` 照常工作——它们只读写纯文本的 `history.tsv`，
+  所以在远程机器上照样能查历史、也能被脚本直接消费。
+
+注意 `proton_clipboard` 在 Linux 上只检查 `PATH` 里有没有 `wl-paste` / `xclip` / `xsel`，不检查能否连上服务器。
+`mtuck` 因此在 `watch` 启动前额外探测一次显示服务器，连不上就直接报错，而不是每隔几百毫秒刷一行「读剪贴板失败」。
 
 ## 快速上手
 
@@ -81,6 +103,7 @@ mtuck list -q moon   # 按子串搜索
 | `mtuck help` / `version` | `-h` / `--help`、`--version` | 帮助 / 版本号 |
 
 `<n>` 是最新为 `0` 的编号，也支持 `last`、`1,3,5`、`2-5` 等写法。
+需要剪贴板后端的只有 `watch` 和 `copy`，其余命令在没有图形服务器的环境里也能用。
 完整选项、环境变量、`--json` 输出格式与退出码见 [docs/commands.md](docs/commands.md)。
 
 更多文档（工作原理与存储格式、开发指南、开机自启）见 [docs/](docs/)，贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
