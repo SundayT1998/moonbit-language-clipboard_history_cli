@@ -22,7 +22,7 @@ pub async fn run(args : Array[String]) -> Int32 {
 /// 测试用它喂一段固定文本，从而覆盖 `run` → 分发 → `watch` → 落盘的整条链路。
 pub async fn run_inner(
   args : Array[String],
-  read_clip~ : async () -> Result[String?, String] = read_clipboard,
+  read_clip~ : async () -> Result[String?, String] = fn() { read_clipboard() },
 ) -> Int32 {
   let argv : Array[String] = if args.is_empty() {
     []

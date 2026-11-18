@@ -36,6 +36,16 @@ fn absolute(path : String) -> String {
 }
 
 ///|
+/// 去掉最后一级的父目录；没有 `/` 时返回 `"."`（相对路径就在当前目录建）。
+fn parent_dir(path : String) -> String {
+  match path.rev_find("/") {
+    Some(0) => "/"
+    Some(i) => path[:i].to_owned()
+    None => "."
+  }
+}
+
+///|
 fn history_path() -> String {
   "\{data_dir()}/history.tsv"
 }
@@ -67,7 +77,14 @@ async fn save_to(
 ) -> Bool {
   let tmp = "\{path}.tmp"
   // 历史文件里有密码和 token 原文：目录 0700、文件 0600，只给当前用户读。
-  @fs.mkdir(dir, permission=0o700, recursive=true, allow_exist=true) catch {
+  // core 的 `mkdir` 没有 `allow_existing`，也没有非递归的建目录：
+  // `data_dir()` 只有一级，所以建的是 `dir` 的父目录，最后一级单独建，
+  // 已存在就交给下面的 `chmod` 收紧权限。
+  let parent = parent_dir(dir)
+  @fs.mkdir(parent, permission=0o700, recursive=true) catch {
+    _ => ()
+  }
+  @fs.mkdir(dir, permission=0o700) catch {
     _ => ()
   }
   // 收紧已存在目录的权限（老版本建出来的可能是 0755）

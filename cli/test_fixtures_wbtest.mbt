@@ -38,12 +38,12 @@ async fn with_history_at(
 
 ///|
 async fn with_tmp_history(f : async (String) -> Unit) -> Unit {
+  // `tmpdir` 已经建好目录，不必再 mkdir
   let dir = @fs.tmpdir(prefix="mtuck-test-") catch { e => abort(e.to_string()) }
-  @fs.mkdir(dir, recursive=true, allow_exist=true)
   let path = "\{dir}/history.tsv"
   assert_true(save_to(sample_history(), path, dir))
   f(path)
-  @fs.rmdir(dir, recursive=true, allow_missing=true) catch {
+  @fs.remove(dir) catch {
     _ => ()
   }
 }

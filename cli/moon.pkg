@@ -12,9 +12,9 @@ import {
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/env",
   "moonbitlang/core/string",
-  "moonbit-community/proton_clipboard" @clip,
   "moonbitlang/x/time",
   "SundayT1998/mtuck/history",
+  "SundayT1998/mtuck/platform",
   "SundayT1998/mtuck/watch",
 }
 

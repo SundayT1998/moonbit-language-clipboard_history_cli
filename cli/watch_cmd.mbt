@@ -1,11 +1,19 @@
 ///|
-async fn copy_to_clipboard(text : String) -> Int32 {
-  match @clip.write_text(text) {
-    Ok(_) => 0
-    Err(msg) => {
-      eprintln("mtuck: 写剪贴板失败: \{msg}")
+/// 写剪贴板。后端不可用时不能只说“写失败”：用户需要知道装什么、开什么。
+fn copy_to_clipboard(text : String) -> Int32 {
+  match @platform.availability() {
+    Unavailable(error) => {
+      eprintln("mtuck: \{error}")
       1
     }
+    Ready(_) =>
+      match @platform.write_text(text) {
+        Ok(_) => 0
+        Err(msg) => {
+          eprintln("mtuck: 写剪贴板失败：\{msg}")
+          1
+        }
+      }
   }
 }
 
@@ -13,7 +21,7 @@ async fn copy_to_clipboard(text : String) -> Int32 {
 async fn command_copy(
   args : Args,
   path~ : String = history_path(),
-  write~ : async (String) -> Int32 = copy_to_clipboard,
+  write~ : async (String) -> Int32 = fn(text) { copy_to_clipboard(text) },
 ) -> Int32 {
   match resolve_indexes(args) {
     Err(msg) => {
@@ -48,15 +56,23 @@ async fn command_copy(
 
 ///|
 /// 读系统剪贴板。`command_watch` 的默认事件源。
-async fn read_clipboard() -> Result[String?, String] {
-  @clip.read_text()
+fn read_clipboard() -> Result[String?, String] {
+  @platform.read_text()
 }
 
 ///|
 async fn command_watch(
   args : Args,
-  read~ : async () -> Result[String?, String] = read_clipboard,
+  read~ : async () -> Result[String?, String] = fn() { read_clipboard() },
 ) -> Int32 {
+  // 后端先探一次：等到轮询里才失败的话，用户会看见每 400ms 一行错误
+  match @platform.availability() {
+    Unavailable(error) => {
+      eprintln("mtuck: \{error}")
+      return 1
+    }
+    Ready(backend) => println("剪贴板后端：\{backend}")
+  }
   let interval = match args.interval {
     Some(ms) => ms
     None => 400
@@ -88,7 +104,7 @@ async fn run_watch(
   watcher : @watch.Watcher,
   interval : Int32,
 ) -> Bool {
-  // 轮询和落盘拆成两个任务：消费者按序把 `saved` 写进磁盘，轮询只负责
+  // 轮询和落盘拆成两个任务：消费者按序把快照写进磁盘，轮询只负责
   // `poll` + `push`，写完一条再去读剪贴板。回调里直接 `save` 的话，一次
   // 全量编码 + 写临时文件 + fsync 期间读不到剪贴板，连续复制的中间内容会丢。
   //
@@ -101,21 +117,6 @@ async fn run_watch(
   )
   let mut save_failed = false
   @async.with_task_group(fn(group) {
-    // 消费者：每拿到一份快照就写一次盘，队列关闭后 `try_get` 抛错表示结束
-    group.spawn_bg(async fn() {
-      let running = Ref(true)
-      while running.val {
-        let entry = queue.try_get() catch {
-          _ => {
-            running.val = false
-            None
-          }
-        }
-        if entry is Some(entry) && !save(entry) {
-          save_failed = true
-        }
-      }
-    })
     group.spawn_bg(async fn() {
       @watch.watch_loop(
         watcher,
@@ -146,6 +147,22 @@ async fn run_watch(
       )
       queue.close()
     })
+    // 消费者：每拿到一份快照就写一次盘，队列关闭后 `try_get` 抛错表示结束
+    group.spawn_bg(async fn() {
+      let running = Ref(true)
+      while running.val {
+        let entry = queue.try_get() catch {
+          _ => {
+            running.val = false
+            None
+          }
+        }
+        if entry is Some(entry) && !save(entry) {
+          save_failed = true
+        }
+      }
+    })
   })
+  // 退出前再存一次：内存里的条目一定比磁盘新（或者一样新）
   save_failed
 }

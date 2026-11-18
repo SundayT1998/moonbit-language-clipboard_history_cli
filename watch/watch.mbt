@@ -45,15 +45,25 @@ pub(all) struct Watcher {
 }
 
 ///|
+/// `initial` 是启动瞬间剪贴板里的内容，它本身不该被记进历史。
+///
+/// 难处在于“有没有变更计数”决定了初始值怎么用：
+/// - 有计数（macOS / Windows）：先读一遍同时记下计数，之后计数不变就不必再读，
+///   这次读到的内容就是 `initial`，不是“刚发生的变化”。
+/// - 没计数（Linux）：只能靠文本比对。如果这里把 `initial` 记成 `last_text`，
+///   一次刚发生、还没来得及记录的复制就会被当成“没变化”永久丢掉。
+///   所以没有计数时保留第一次 poll 的结果，交给启动前那次读到的内容去去重。
 pub fn Watcher::new(
   read : async () -> Result[String?, String],
   initial? : String?,
 ) -> Watcher {
+  let token = @platform.change_token()
   {
     read,
-    last_token: @platform.change_token(),
-    last_text: match initial {
-      Some(Some(text)) => Some(text.trim().to_owned())
+    last_token: token,
+    last_text: match (token, initial) {
+      // 有计数：初始内容已经算“见过”了
+      (Some(_), Some(Some(text))) => Some(text.trim().to_owned())
       _ => None
     },
   }
