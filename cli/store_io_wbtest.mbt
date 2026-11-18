@@ -89,7 +89,7 @@ async fn path_roundtrip(f : async (String) -> Unit) -> Unit {
   let dir = @fs.tmpdir(prefix="mtuck-test-") catch { e => abort(e.to_string()) }
   let path = "\{dir}/data/history.tsv"
   f(path)
-  @fs.remove(dir, recursive=true) catch {
+  @fs.remove(dir) catch {
     _ => ()
   }
 }

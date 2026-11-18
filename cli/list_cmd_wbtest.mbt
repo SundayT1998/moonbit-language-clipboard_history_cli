@@ -24,7 +24,7 @@ async test "command_list: 没有匹配仍返回 0，空历史也一样" {
   let dir = @fs.tmpdir(prefix="mtuck-test-") catch { e => abort(e.to_string()) }
   let path = "\{dir}/absent/history.tsv"
   assert_eq(list_at(path, default_args("list")), 0)
-  @fs.remove(dir, recursive=true) catch {
+  @fs.remove(dir) catch {
     _ => ()
   }
 }

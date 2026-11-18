@@ -43,7 +43,7 @@ async fn with_tmp_history(f : async (String) -> Unit) -> Unit {
   let path = "\{dir}/history.tsv"
   assert_true(save_to(sample_history(), path, dir))
   f(path)
-  @fs.remove(dir, recursive=true) catch {
+  @fs.remove(dir) catch {
     _ => ()
   }
 }
